@@ -1,0 +1,286 @@
+\section{Introduction}\label{sec:intro}
+
+Robotic teleoperation---the remote control of robots by humans---is rapidly moving beyond specialized industrial and military roles to consumer domains such as tele-surgery~\cite{moustris2023}, subsea and disaster inspection~\cite{lichiardopol2007}, and virtual-reality entertainment~\cite{lichiardopol2007}. In these settings, most systems follow a \emph{human-in-the-loop} design: the operator supplies intuition and high-level reasoning, while the robot delivers precision and reach~\cite{lichiardopol2007}.
+
+For widespread adoption, interaction must be fluid, intuitive, and non-fatiguing. A robot that users find frustrating, exhausting, or unnatural to control will ultimately fail~\cite{yang2017}. Here, \emph{user experience} (UX) refers to users' overall perception of how natural, comfortable, and satisfying it is to interact with the robot, making measurement and optimization of subjective UX as critical as optimizing low-level control.
+
+\subsection{Limitations of Post-Hoc Subjective Evaluation}
+
+The standard approach to UX assessment in teleoperation (and in human--computer interaction more broadly) is the administration of questionnaires after task completion~\cite{rueben2020}. Instruments such as the NASA Task Load Index (NASA-TLX)~\cite{hart1988}, the System Usability Scale (SUS)~\cite{brooke1996}, and the Questionnaire for User Interaction Satisfaction (QUIS)~\cite{chin1988} are well-validated and widely deployed. Nevertheless, they share a fundamental limitation: being post-hoc, they cannot capture the temporal dynamics of the experience, are susceptible to recency and memory biases~\cite{sreenivas2020}, and do not enable real-time adaptive interventions.
+
+\subsection{Hypothesis and Research Questions}
+
+The central hypothesis motivating this work is that the \emph{kinematics of the operator's movement} during teleoperation encodes information about the operator's internal cognitive and affective state. In other words, a fluid, decisive motion pattern may reflect low cognitive load and high confidence, whereas a jerky, hesitant pattern may be an objective fingerprint of frustration, high mental demand, or poor usability.
+
+We operationalize this hypothesis through three research questions:
+
+\begin{itemize}
+
+\item \emph{RQ1: Correlation.} Do statistically significant linear relationships exist between end-effector kinematic features and the ten subjective experience dimensions?
+
+\item \emph{RQ2: Prediction---Regression.} Can supervised regression models predict the exact Likert-scale score of each dimension from kinematic features alone, generalizing to unseen users?
+
+\item \emph{RQ3: Prediction---Classification.} When the problem is simplified to a binary high/low split, does predictive performance improve, and which dimensions become classifiable?
+
+\end{itemize}
+
+\subsection{Contributions}
+
+The main contributions of this paper are:
+
+\begin{enumerate}
+
+\item A systematic correlation study (Pearson and Spearman) between 19~statistical, temporal, and spectral kinematic features and ten subjective UX metrics, with significance testing ($p$-values) for every coefficient.
+
+\item A comprehensive regression benchmark comprising 9~models~$\times$~16~feature-set combinations~$\times$~10~targets, evaluated with strict Leave-One-Subject-Out (LOSO) cross-validation and permutation-based significance testing.
+
+\item A complementary binary-classification analysis (median-split) that reveals which UX dimensions become reliably separable from motion data when the granularity requirement is relaxed.
+
+\item Interpretability analysis via SHAP (SHapley Additive exPlanations) values, linking each prediction back to specific kinematic descriptors.
+
+\item Public release of the analysis code to support reproducibility.
+
+\end{enumerate}
+
+The remainder of the paper is organized as follows. Section~\ref{sec:related} reviews the literature. Section~\ref{sec:methods} describes the dataset, feature engineering, modeling pipeline, and statistical validation. Section~\ref{sec:results} reports the experimental findings, followed by discussion of findings, limitations, and implications in Section~\ref{sec:discussion}. Section~\ref{sec:conclusion} concludes the paper.
+
+\section{Related Work}
+\label{sec:related}
+
+
+\subsection{Robotic Teleoperation and IMU-Based Interfaces}
+
+Teleoperation systems comprise a master device (the human interface), a communication channel, and a slave robot executing actions in the remote or virtual environment~\cite{lichiardopol2007}. Master interfaces range from joysticks and haptic devices to vision-based systems. Inertial measurement units (IMUs) have gained popularity as a lightweight, low-cost, and highly portable alternative: accelerometers and gyroscopes embedded in wearable modules track limb orientation in real time, enabling intuitive body-mapped control~\cite{ahmad2013}. The dataset analyzed in this study originates from a system using three Bosch BNO055 IMUs mounted on the operator's upper arm, forearm, and hand, transmitting quaternion data at 50\,Hz to control a simulated Universal Robots UR10e arm in Gazebo via ROS\,2~\cite{fornaro2024}.
+
+\subsection{Subjective Usability Evaluation}
+
+To evaluate such systems, well-established frameworks offer structured guidance. ISO 9241-11 defines usability along the dimensions of effectiveness, efficiency, and satisfaction. The NASA-TLX~\cite{hart1988} operationalizes perceived workload into six subscales (mental demand, physical demand, temporal demand, effort, frustration, and performance). Complementary instruments include the SUS for overall usability~\cite{brooke1996} and the SMEQ for momentary mental effort~\cite{wong2017}. All these tools share the post-hoc limitation discussed in Section~\ref{sec:intro}, motivating the search for alternative assessment methods.
+
+\subsection{Movement Analysis and Affective/Cognitive State Inference}
+
+A growing body of work uses kinematic and physiological signals to infer internal human states. Deep-learning approaches have been applied to facial expressions, speech, and body movement for affect recognition~\cite{rouast2021}. In the teleoperation domain, kinematic features have been leveraged primarily for \emph{task recognition}~\cite{stan2025} rather than for decoding the operator's \emph{subjective experience}, illustrating a gap in current methodologies.
+
+This gap extends into related fields. Usability evaluation in agricultural robotic teleoperation has been conducted via traditional questionnaires~\cite{adamides2017}, and adaptive tutoring frameworks for human--robot interaction have been proposed~\cite{belgiovine2022}, but these do not attempt to \emph{predict} subjective metrics from movement data.
+
+\subsection{Positioning of This Work}
+
+To the best of our knowledge, no prior study has systematically investigated whether the kinematic features of the end-effector trajectory in IMU-based teleoperation can predict the full range of NASA-TLX-inspired subjective workload dimensions, as well as additional UX scales (usability, realism, responsiveness, intuitiveness). Our work bridges the gap between task-recognition kinematics and subjective usability evaluation.
+
+\section{Materials and Methods}
+\label{sec:methods}
+
+
+\subsection{Dataset and Experimental Protocol}
+\label{sec:dataset}
+
+We perform a secondary analysis of data collected by Fornaro et~al.~\cite{fornaro2024} in a study evaluating the responsiveness of a low-cost IMU-based teleoperation system.
+
+\subsubsection{Participants and Setup}
+
+Sixteen male volunteers aged 18--49 participated in the study. Three IMU sensors (Bosch BNO055 on Arduino MKR1000 boards) were attached to the upper arm, forearm, and hand of each participant, streaming orientation quaternions at 50\,Hz. The slave robot was a Universal Robots UR10e with a Robotiq 2F-85 gripper, simulated in the Gazebo 3-D environment and managed through ROS\,2. Each participant performed three manipulation tasks of increasing complexity, each repeated three times, yielding $16 \times 3 \times 3 = 144$ motion recordings.
+
+\subsubsection{Recorded Variables}
+
+For each trial, 19~kinematic time-series were recorded: quaternion components ($x, y, z, w$) for the three IMU segments (upper arm, forearm, hand) and the target end-effector pose (Cartesian position $x, y, z$ and quaternion orientation $x, y, z, w$).
+
+\subsubsection{Subjective Questionnaire}
+
+After completing all trials, each participant filled in a 10-item questionnaire on a 5-point Likert scale (1\,=\,``Strongly disagree'' to 5\,=\,``Strongly agree''), inspired by the NASA-TLX. The ten dimensions are: \textit{physical\_demand}, \textit{mental\_demand}, \textit{temporal\_demand}, \textit{effort}, \textit{frustration}, \textit{usability}, \textit{responsiveness}, \textit{realistic}, \textit{intuitive}, and \textit{performance}.
+
+\subsubsection{Participant Demographics}
+
+The majority of participants (56\%) were in the 18--24 age group, 37.5\% in the 30--39 group, and 6.25\% in the 40--49 group. Regarding virtual-environment experience, 62.5\% reported none or limited experience, making the sample representative of novice end-users. All participants were male, which is a limitation discussed in Section~\ref{sec:discussion}.
+
+\subsection{Feature Engineering}
+\label{sec:features}
+
+From the raw time-series, 19~features were extracted per signal per trial, yielding $19 \times 19 = 361$ features per trial. The feature categories are:
+
+\begin{itemize}
+\item \textbf{Central tendency and dispersion:} mean, median, standard
+      deviation (std), variance, root mean square (rms).
+\item \textbf{Range and shape:} min, max, range, interquartile range
+      (iqr), total\_sum, skewness, kurtosis, 4th moment, 5th moment.
+\item \textbf{Temporal regularity:} std\_peaks (standard deviation of
+      inter-peak intervals).
+\item \textbf{Spectral:} spectral\_power, spectral\_mean,
+      spectral\_median, entropy (spectral entropy).
+\end{itemize}
+
+\subsubsection{User-Level Aggregation}
+
+Because the questionnaire provides a single global evaluation per participant, the 361~features were averaged across the nine trials of each user, producing an input matrix $\mathbf{X} \in \mathbb{R}^{16 \times 361}$.
+
+\subsubsection{Focus on End-Effector Orientation}
+
+Preliminary analysis indicated that the end-effector quaternion orientation (\texttt{ee\_quat}: $x, y, z, w$) carried the most informative signal. Therefore, the regression and classification experiments consider only the 19~features $\times$ 4~axes = 76 end-effector features and their 16~axis-combination subsets (all non-empty subsets of $\{x,y,z,w\}$ plus an axis-averaged variant).
+
+\subsubsection{Target Preparation}
+
+Textual questionnaire responses were mapped to the numeric Likert scale (Table~\ref{tab:likert}). For the correlation analysis only, negatively worded items (physical demand, mental demand, temporal demand, effort, frustration) were inverted so that higher values consistently indicate a more positive experience. Regression and classification models used the original (non-inverted) scale.
+
+\begin{table}[htbp]
+\centering
+\caption{Likert mapping of questionnaire responses.}
+\label{tab:likert}
+\begin{tabular}{lc}
+\toprule
+\textbf{Response (Italian)} & \textbf{Numeric Value} \\
+\midrule
+Fortemente in disaccordo & 1 \\
+In disaccordo & 2 \\
+Neutro & 3 \\
+D'accordo & 4 \\
+Fortemente d'accordo & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Stage~1: Correlation Analysis}
+\label{sec:corr_method}
+
+Pearson ($r$) and Spearman ($\rho$) correlation coefficients were computed between each kinematic feature and each questionnaire target. Statistical significance was assessed with a two-tailed $t$-test (for Pearson) and the corresponding rank-based test (for Spearman), with a significance threshold of $\alpha = 0.05$. No multiple-comparison correction was applied at this exploratory stage; instead, we report exact $p$-values and highlight only correlations that are both practically meaningful ($|r| \ge 0.30$) and statistically significant.
+
+\subsection{Stage~2: Regression Modelling}
+\label{sec:reg_method}
+
+\subsubsection{Problem Formulation}
+
+The problem is framed as multivariate regression: given a user's kinematic feature vector $\mathbf{x} \in \mathbb{R}^{d}$, predict the ten Likert-scale targets $\mathbf{y} \in \{1,2,3,4,5\}^{10}$ simultaneously (global model) or each target individually (target-specific model).
+
+\subsubsection{Models}
+
+Nine regression algorithms spanning linear, kernel, neighbour-based, and ensemble families were evaluated:
+\begin{enumerate}
+\item Ridge Regression
+\item Lasso Regression
+\item ElasticNet
+\item $k$-Nearest Neighbours Regressor (KNR)
+\item Support Vector Regression (SVR)
+\item Decision Tree Regressor (DTR)
+\item Random Forest Regressor (RFR)
+\item Gradient Boosting Regressor (GBR)
+\item XGBoost Regressor (XGB)
+\end{enumerate}
+
+\subsubsection{Feature-Set Combinations}
+
+All 15~non-empty subsets of the four quaternion axes plus one ``axis-averaged'' set were tested, totalling 16~feature configurations per model per target.
+
+\subsubsection{Hyperparameter Optimisation}
+
+For each model, a predefined grid of hyperparameters was searched exhaustively via \texttt{GridSearchCV} with an inner 3-fold cross-validation on the training set, optimizing the $R^{2}$ score.
+
+\subsubsection{Outer Validation: LOSO}
+
+The outer evaluation loop used Leave-One-Subject-Out (LOSO) cross-validation: in each of the 16~folds, one user is held out for testing and the remaining 15 are used for training (including inner hyperparameter search). Feature standardisation (\texttt{StandardScaler}) was fitted on the training fold only to prevent data leakage.
+
+\subsubsection{Performance Metrics}
+
+Three standard regression metrics were computed on the out-of-sample predictions aggregated across all 16~LOSO folds:
+\begin{itemize}
+\item \textbf{$R^{2}$ (Coefficient of Determination):}
+      $R^{2} = 1 - \frac{\sum_{i}(y_i - \hat{y}_i)^2}
+                         {\sum_{i}(y_i - \bar{y})^2}$.
+      A value of 0 corresponds to the mean-prediction baseline;
+      negative values indicate worse-than-baseline performance.
+\item \textbf{RMSE (Root Mean Squared Error):}
+      $\mathrm{RMSE} = \sqrt{\frac{1}{n}\sum_{i}(y_i-\hat{y}_i)^2}$.
+\item \textbf{MAE (Mean Absolute Error):}
+      $\mathrm{MAE} = \frac{1}{n}\sum_{i}|y_i-\hat{y}_i|$.
+\end{itemize}
+
+\subsection{Stage~3: Binary Classification}
+\label{sec:class_method}
+
+To address the difficulty of exact Likert-score regression with only $N=16$ samples, each target was dichotomised at the sample median into ``High'' and ``Low'' classes. The same nine algorithms (in their classification counterparts where applicable---e.g., \texttt{SVC}, \texttt{RandomForestClassifier}) were evaluated with identical LOSO outer validation and inner 3-fold hyperparameter search. Classification metrics include accuracy, balanced accuracy, F1-score (macro), and area under the ROC curve (AUC).
+
+\subsection{Statistical Validation: Permutation Test}
+\label{sec:perm_method}
+
+A permutation test was performed for both the regression and classification pipelines to guard against spurious results arising from the small sample size.
+
+\subsubsection{Procedure}
+
+\begin{enumerate}
+\item Compute the observed score (RMSE for regression; AUC for
+      classification) of the best model on the real data using
+      full LOSO.
+\item Randomly shuffle the target labels $N_{\mathrm{perm}}=1\,000$
+      times, re-running the entire LOSO pipeline each time.
+\item Compute the empirical $p$-value as the fraction of
+      permuted scores that are \emph{equal to or better than} the
+      observed score:
+      \[
+        p = \frac{\#\{s_k \le s_{\mathrm{obs}}\}}{N_{\mathrm{perm}}}
+        \quad\text{(RMSE; lower is better)}
+      \]
+      \[
+        p = \frac{\#\{s_k \ge s_{\mathrm{obs}}\}}{N_{\mathrm{perm}}}
+        \quad\text{(AUC; higher is better)}
+      \]
+\end{enumerate}
+
+\subsubsection{Significance Criterion}
+
+Results with $p < 0.05$ are considered statistically significant.
+
+\subsection{Interpretability: SHAP Analysis}
+\label{sec:shap_method}
+
+To understand \emph{which} kinematic features drive the predictions of the best-performing models, we computed SHAP values~\cite{lundberg2017} for each target. For tree-based models (Random Forest, XGBoost, Gradient Boosting), the exact \texttt{TreeExplainer} was used; for linear and kernel models, the \texttt{KernelExplainer} with a background sample drawn from the training fold was employed. SHAP summary plots are reported for the statistically significant targets.
+
+\subsection{Implementation Details}
+
+All experiments were implemented in Python~3.11 using \texttt{scikit-learn}~1.4, \texttt{xgboost}~2.0, \texttt{shap}~0.44, \texttt{pandas}~2.2, and \texttt{numpy}~1.26. Visualisations were produced with \texttt{matplotlib}~3.8 and \texttt{seaborn}~0.13. The random seed was fixed to 42 for reproducibility. A \texttt{config.yaml} file parameterises all pipeline settings.
+
+\begin{thebibliography}{999}
+% Reference 1
+\bibitem[Author1(year)]{ref-journal}
+Author~1, T. The title of the cited article. {\em Journal Abbreviation} {\bf 2008}, {\em 10}, 142--149.
+% Reference 2
+\bibitem[Author2(year)]{ref-book1}
+Author~2, L. The title of the cited contribution. In {\em The Book Title}; Editor 1, F., Editor 2, A., Eds.; Publishing House: City, Country, 2007; pp. 32--58.
+% Reference 3
+\bibitem[Author1 and Author2 (year)]{ref-book2}
+Author 1, A.; Author 2, B. \textit{Book Title}, 3rd ed.; Publisher: Publisher Location, Country, 2008; pp. 154--196.
+% Reference 4
+\bibitem[Author4(year)]{ref-unpublish}
+Author 1, A.B.; Author 2, C. Title of Unpublished Work. \textit{Abbreviated Journal Name} year, \textit{phrase indicating stage of publication (submitted; accepted; in press)}.
+% Reference 5
+\bibitem[Author8(year)]{ref-url}
+Title of Site. Available online: URL (accessed on Day Month Year).
+% Reference 6
+\bibitem[Author6(year)]{ref-proceeding}
+Author 1, A.B.; Author 2, C.D.; Author 3, E.F. Title of presentation. In Proceedings of the Name of the Conference, Location of Conference, Country, Date of Conference (Day Month Year); Abstract Number (optional), Pagination (optional).
+% Reference 7
+\bibitem[Author7(year)]{ref-thesis}
+Author 1, A.B. Title of Thesis. Level of Thesis, Degree-Granting University, Location of University, Date of Completion.
+\end{thebibliography}
+}
+
+% Chicago format (Used for journal: arts, genealogy, histories, humanities, jintelligence, laws, literature, religions, risks, socsci)
+\isChicagoStyle{%
+\begin{thebibliography}{999}
+% Reference 1
+\bibitem[Aranceta-Bartrina(1999a)]{ref-journal}
+Aranceta-Bartrina, Javier. 1999a. Title of the cited article. \textit{Journal Title} 6: 100--10.
+% Reference 2
+\bibitem[Aranceta-Bartrina(1999b)]{ref-book1}
+Aranceta-Bartrina, Javier. 1999b. Title of the chapter. In \textit{Book Title}, 2nd ed. Edited by Editor 1 and Editor 2. Publication place: Publisher, vol. 3, pp. 54–96.
+% Reference 3
+\bibitem[Baranwal and Munteanu {[1921]}(1955)]{ref-book2}
+Baranwal, Ajay K., and Costea Munteanu. 1955. \textit{Book Title}. Publication place: Publisher, pp. 154--96. First published 1921 (op-tional).
+% Reference 4
+\bibitem[Berry and Smith(1999)]{ref-thesis}
+Berry, Evan, and Amy M. Smith. 1999. Title of Thesis. Level of Thesis, Degree-Granting University, City, Country. Identifi-cation information (if available).
+% Reference 5
+\bibitem[Cojocaru et al.(1999)]{ref-unpublish}
+Cojocaru, Ludmila, Dragos Constatin Sanda, and Eun Kyeong Yun. 1999. Title of Unpublished Work. \textit{Journal Title}, phrase indicating stage of publication.
+% Reference 6
+\bibitem[Driver et al.(2000)]{ref-proceeding}
+Driver, John P., Steffen Rohrs, and Sean Meighoo. 2000. Title of Presentation. In \textit{Title of the Collected Work} (if available). Paper presented at Name of the Conference, Location of Conference, Date of Conference.
+% Reference 7
+\bibitem[Harwood(2008)]{ref-url}
+Harwood, John. 2008. Title of the cited article. Available online: URL (accessed on Day Month Year).
+\end{thebibliography}

@@ -1,0 +1,19 @@
+seed: 42
+paths:
+  raw_data_dir: data/raw
+  interim_data_dir: data/interim
+  processed_data_dir: data/processed
+  outputs_dir: outputs
+study:
+  targets:
+    - physical_demand
+    - mental_demand
+    - temporal_demand
+    - effort
+    - frustration
+    - usability
+    - responsiveness
+    - realistic
+    - intuitive
+    - performance
+  ee_axes: [x, y, z, w]

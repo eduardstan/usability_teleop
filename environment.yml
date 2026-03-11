@@ -1,0 +1,19 @@
+name: usability_teleop_clean
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - numpy=1.26
+  - pandas=2.2
+  - scikit-learn=1.4
+  - scipy=1.17
+  - matplotlib=3.8
+  - seaborn=0.13
+  - pyyaml
+  - openpyxl
+  - tqdm
+  - pip:
+      - xgboost==2.0.3
+      - shap==0.44.1

@@ -1,0 +1,28 @@
+feature_sets:
+  include_average: true
+
+tuning:
+  regression_scoring: r2
+  classification_scoring: roc_auc
+
+cv:
+  regression_inner_max_splits: 3
+  classification_inner_max_splits: 3
+  inner_shuffle: true
+  inner_random_seed: 42
+
+permutation:
+  alpha: 0.05
+  n_permutations_default: 100
+  nested_default: false
+
+shap:
+  max_targets_default: 5
+
+inference:
+  baseline_regression_model: LinearRegression
+  baseline_classification_model: RidgeLikeClassifier
+  bootstrap_iterations: 2000
+  bayesian_bootstrap_samples: 5000
+  paired_alpha: 0.05
+  fdr_alpha: 0.05
