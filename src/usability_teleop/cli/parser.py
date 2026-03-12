@@ -73,5 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipe.add_argument("--max-targets", type=int, default=5)
     pipe.add_argument("--alpha", type=float, default=0.05)
     pipe.add_argument("--effect-threshold", type=float, default=0.30)
+    pipe.add_argument("--n-permutations", type=int, default=None)
+    pipe.add_argument("--nested-permutation", action="store_true")
     pipe.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_paper_pipeline"))
     return parser

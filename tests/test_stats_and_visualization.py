@@ -15,6 +15,7 @@ from usability_teleop.stats.permutation import (
     run_classification_permutation_tests,
     run_regression_permutation_tests,
 )
+from usability_teleop.stats.permutation_shared import params_from_result_row
 from usability_teleop.viz.figures import (
     plot_classification_overview,
     plot_correlation_heatmap,
@@ -194,3 +195,13 @@ def test_inference_bundle_smoke() -> None:
     assert not cls_inf.empty
     assert {"paired_p_value", "paired_p_value_fdr", "bayes_prob_improvement"}.issubset(reg_inf.columns)
     assert {"paired_p_value", "paired_p_value_fdr", "bayes_prob_improvement"}.issubset(cls_inf.columns)
+
+
+def test_params_from_result_row_supports_unified_fold_params() -> None:
+    row = pd.Series(
+        {
+            "fold_best_params": '[{"alpha": 0.1}, {"alpha": 1.0}]',
+        }
+    )
+    params = params_from_result_row(row)
+    assert params == {"alpha": 1.0}

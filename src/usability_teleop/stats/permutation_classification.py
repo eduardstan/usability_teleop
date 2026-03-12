@@ -16,7 +16,7 @@ from usability_teleop.stats.inference_utils import loso_classification_trace
 from usability_teleop.stats.permutation_config import PermutationConfig
 from usability_teleop.stats.permutation_shared import (
     feature_set_by_name,
-    params_from_json,
+    params_from_result_row,
     spec_by_name,
 )
 
@@ -36,7 +36,10 @@ def run_classification_permutation_tests(
     """Run permutation tests on best per-target classification configurations."""
     cfg = config or PermutationConfig()
     rows: list[dict[str, object]] = []
-    valid = classification_results[classification_results["status"] == "ok"]
+    if "status" in classification_results.columns:
+        valid = classification_results[classification_results["status"] == "ok"]
+    else:
+        valid = classification_results
 
     for target in y_cls.columns:
         target_rows = valid[valid["target"] == target]
@@ -47,7 +50,7 @@ def run_classification_permutation_tests(
         model_name = str(best["model"])
         feature_name = str(best["feature_set"])
         threshold = float(best["threshold"])
-        params = params_from_json(str(best.get("best_params_last_fold", "{}")))
+        params = params_from_result_row(best)
         y = (y_cls[target].to_numpy(dtype=float) >= threshold).astype(int)
         if len(np.unique(y)) < 2:
             continue
