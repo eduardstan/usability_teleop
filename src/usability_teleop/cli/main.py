@@ -25,3 +25,7 @@ def _run_handler(handler: Callable[[argparse.Namespace, object], int], args: arg
 
 
 __all__ = ["build_parser", "main"]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

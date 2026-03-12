@@ -57,9 +57,43 @@ def build_parser() -> argparse.ArgumentParser:
     fe.add_argument("--max-targets", type=int, default=None)
     fe.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_final_explainability"))
 
+    stat = sub.add_parser(
+        "run-stat-validation",
+        help="Run unified statistical validation (permutation + inference + global-vs-local tables)",
+    )
+    stat.add_argument("--data-dir", default="data/raw")
+    stat.add_argument("--tables-dir", default="outputs/tables")
+    stat.add_argument("--seed", type=int, default=42)
+    stat.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    stat.add_argument("--max-models", type=int, default=None)
+    stat.add_argument("--max-feature-sets", type=int, default=None)
+    stat.add_argument("--n-permutations", type=int, default=None)
+    stat.add_argument("--nested-permutation", action="store_true")
+    stat.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_stat_validation"))
+
+    art = sub.add_parser(
+        "build-paper-artifacts",
+        help="Build full publication artifact bundle (tables + figures)",
+    )
+    art.add_argument("--data-dir", default="data/raw")
+    art.add_argument("--tables-dir", default="outputs/tables")
+    art.add_argument("--figures-dir", default="outputs/figures")
+    art.add_argument("--seed", type=int, default=42)
+    art.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    art.add_argument("--max-models", type=int, default=None)
+    art.add_argument("--max-feature-sets", type=int, default=None)
+    art.add_argument("--top-k-per-axis", type=int, default=None)
+    art.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
+    art.add_argument("--max-targets", type=int, default=5)
+    art.add_argument("--alpha", type=float, default=0.05)
+    art.add_argument("--effect-threshold", type=float, default=0.30)
+    art.add_argument("--n-permutations", type=int, default=None)
+    art.add_argument("--nested-permutation", action="store_true")
+    art.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_paper_artifacts"))
+
     pipe = sub.add_parser(
         "run-paper-pipeline",
-        help="Run protocol pipeline (RQ1 + estimation + final-model explainability)",
+        help="Compatibility alias for build-paper-artifacts",
     )
     pipe.add_argument("--data-dir", default="data/raw")
     pipe.add_argument("--tables-dir", default="outputs/tables")

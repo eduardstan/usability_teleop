@@ -13,6 +13,8 @@ def test_cli_parser_accepts_unified_commands() -> None:
     assert parser.parse_args(["run-estimation"]).command == "run-estimation"
     assert parser.parse_args(["fit-final-models"]).command == "fit-final-models"
     assert parser.parse_args(["run-final-explainability"]).command == "run-final-explainability"
+    assert parser.parse_args(["run-stat-validation"]).command == "run-stat-validation"
+    assert parser.parse_args(["build-paper-artifacts"]).command == "build-paper-artifacts"
     assert parser.parse_args(["run-paper-pipeline"]).command == "run-paper-pipeline"
 
 

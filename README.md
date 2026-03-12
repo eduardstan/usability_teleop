@@ -38,8 +38,10 @@ python -m pip install -e .[dev]
 usability-teleop doctor
 usability-teleop validate-data --source-dir data/raw --copy-to-raw
 usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --max-models 2 --max-feature-sets 2 --class-balance none
+usability-teleop run-stat-validation --data-dir data/raw --tables-dir outputs/tables --max-models 2 --max-feature-sets 2 --n-permutations 100
 usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables
 usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --experiment-config configs/experiment.yaml --max-targets 5
+usability-teleop build-paper-artifacts --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-models 2 --max-feature-sets 2
 usability-teleop run-paper-pipeline --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-models 2 --max-feature-sets 2
 pytest
 ruff check .
@@ -55,7 +57,9 @@ Notes:
 - `configs/experiment.yaml` defines protocol settings (tuning metric, inner-CV behavior, permutation alpha/defaults, SHAP defaults).
 - Every run command accepts `--experiment-config path/to/experiment.yaml` to override protocol defaults.
 - `run-final-explainability` explains only final refit models; no OOF explainability mode is used.
-- `run-paper-pipeline` is the unified protocol pipeline (RQ1 + estimation + final-model explainability).
+- `run-stat-validation` computes permutation and inference tables (p-values, CI, global-vs-local summary) from estimation outputs.
+- `build-paper-artifacts` is the primary unified end-to-end command for publication tables and figures.
+- `run-paper-pipeline` is a compatibility alias to `build-paper-artifacts`.
 
 ## Working Rules
 - All production implementation goes under `src/`.

@@ -283,6 +283,19 @@ def _run_inference_bundle(
     return inf_reg, inf_cls
 
 
+def _run_stat_validation_bundle(
+    x_user: pd.DataFrame,
+    questionnaire: pd.DataFrame,
+    reg_df: pd.DataFrame,
+    cls_df: pd.DataFrame,
+    args: argparse.Namespace,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    reg_perm, cls_perm = _run_permutation(x_user, questionnaire, reg_df, cls_df, args)
+    comparison_df = _build_global_vs_target_specific_comparison(reg_df)
+    inf_reg_df, inf_cls_df = _run_inference_bundle(x_user, questionnaire, reg_df, cls_df, args)
+    return reg_perm, cls_perm, comparison_df, inf_reg_df, inf_cls_df
+
+
 def _run_final_shap(
     x_user: pd.DataFrame,
     questionnaire: pd.DataFrame,
@@ -381,6 +394,52 @@ def cmd_run_final_explainability(args: argparse.Namespace, logger: object) -> in
 
 
 def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
+    return cmd_build_paper_artifacts(args, logger)
+
+
+def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
+    source_dir = Path(args.data_dir).resolve()
+    tables_dir = Path(args.tables_dir).resolve()
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    reg_path = tables_dir / "estimation_regression.csv"
+    cls_path = tables_dir / "estimation_classification.csv"
+    if not reg_path.exists() or not cls_path.exists():
+        logger.error(
+            "Missing estimation tables. Run run-estimation first. Expected: %s and %s",
+            reg_path,
+            cls_path,
+        )
+        return 1
+    try:
+        bundle, x_user = prepare_aligned_inputs(source_dir)
+    except DataValidationError as exc:
+        logger.error("run-stat-validation FAILED: %s", exc)
+        return 1
+
+    reg_df = pd.read_csv(reg_path)
+    cls_df = pd.read_csv(cls_path)
+    try:
+        reg_perm, cls_perm, comparison_df, inf_reg_df, inf_cls_df = _run_stat_validation_bundle(
+            x_user,
+            bundle.questionnaire,
+            reg_df,
+            cls_df,
+            args,
+        )
+    except (ValueError, KeyError) as exc:
+        logger.error("run-stat-validation FAILED: %s", exc)
+        return 1
+
+    reg_perm.to_csv(tables_dir / "permutation_regression_results.csv", index=False)
+    cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
+    comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
+    inf_reg_df.to_csv(tables_dir / "inference_regression.csv", index=False)
+    inf_cls_df.to_csv(tables_dir / "inference_classification.csv", index=False)
+    logger.info("stat-validation tables written to %s", tables_dir)
+    return 0
+
+
+def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
     exp = resolve_experiment_config(args.experiment_config)
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
@@ -408,19 +467,19 @@ def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
         best_df.to_csv(tables_dir / "estimation_best_configs.csv", index=False)
         logger.info("estimation tables written to %s", tables_dir)
 
-        reg_perm, cls_perm = _run_permutation(x_user, bundle.questionnaire, reg_df, cls_df, args)
+        reg_perm, cls_perm, comparison_df, inf_reg_df, inf_cls_df = _run_stat_validation_bundle(
+            x_user,
+            bundle.questionnaire,
+            reg_df,
+            cls_df,
+            args,
+        )
         reg_perm.to_csv(tables_dir / "permutation_regression_results.csv", index=False)
         cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
-        logger.info("permutation tables written to %s", tables_dir)
-
-        comparison_df = _build_global_vs_target_specific_comparison(reg_df)
         comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
-        logger.info("global-vs-local comparison table written to %s", tables_dir / "regression_best_global_vs_target_specific.csv")
-
-        inf_reg_df, inf_cls_df = _run_inference_bundle(x_user, bundle.questionnaire, reg_df, cls_df, args)
         inf_reg_df.to_csv(tables_dir / "inference_regression.csv", index=False)
         inf_cls_df.to_csv(tables_dir / "inference_classification.csv", index=False)
-        logger.info("inference tables written to %s", tables_dir)
+        logger.info("stat-validation tables written to %s", tables_dir)
 
         _build_publication_figures(
             corr_df=corr_df,
@@ -443,10 +502,10 @@ def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
         shap_df.to_csv(tables_dir / "final_explainability_shap.csv", index=False)
         logger.info("final explainability table written to %s", tables_dir / "final_explainability_shap.csv")
     except (ValueError, KeyError) as exc:
-        logger.error("run-paper-pipeline FAILED: %s", exc)
+        logger.error("build-paper-artifacts FAILED: %s", exc)
         return 1
     logger.info(
-        "paper protocol pipeline completed | tables=%s figures=%s | includes permutation p-values and "
+        "paper artifacts completed | tables=%s figures=%s | includes permutation p-values and "
         "inference CI/statistical figures | "
         "shap.max_targets_default=%s",
         tables_dir,
