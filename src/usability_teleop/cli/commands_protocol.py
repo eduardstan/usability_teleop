@@ -127,6 +127,28 @@ def _run_permutation(
     return reg_perm, cls_perm
 
 
+def _build_publication_figures(
+    corr_df: pd.DataFrame,
+    reg_df: pd.DataFrame,
+    cls_df: pd.DataFrame,
+    reg_perm: pd.DataFrame,
+    cls_perm: pd.DataFrame,
+    figures_dir: Path,
+) -> None:
+    from usability_teleop.viz.figures import (
+        plot_classification_overview,
+        plot_correlation_heatmap,
+        plot_permutation_summary,
+        plot_regression_overview,
+    )
+
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    plot_correlation_heatmap(corr_df, figures_dir / "figure_correlation_heatmap.png")
+    plot_regression_overview(reg_df, figures_dir / "figure_regression_overview.png")
+    plot_classification_overview(cls_df, figures_dir / "figure_classification_overview.png")
+    plot_permutation_summary(reg_perm, cls_perm, figures_dir / "figure_permutation_pvalues.png")
+
+
 def _run_final_shap(
     x_user: pd.DataFrame,
     questionnaire: pd.DataFrame,
@@ -256,6 +278,16 @@ def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
         reg_perm.to_csv(tables_dir / "permutation_regression_results.csv", index=False)
         cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
         logger.info("permutation tables written to %s", tables_dir)
+
+        _build_publication_figures(
+            corr_df=corr_df,
+            reg_df=reg_df,
+            cls_df=cls_df,
+            reg_perm=reg_perm,
+            cls_perm=cls_perm,
+            figures_dir=figures_dir,
+        )
+        logger.info("publication overview figures written to %s", figures_dir)
 
         final_df = _fit_final_models(x_user, bundle.questionnaire, best_df, args, logger)
         final_df.to_csv(tables_dir / "final_models.csv", index=False)
