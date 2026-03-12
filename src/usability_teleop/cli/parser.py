@@ -6,6 +6,7 @@ import argparse
 
 from usability_teleop.cli.commands_basic import cmd_doctor, cmd_run_correlation, cmd_validate_data
 from usability_teleop.cli.commands_inference import cmd_run_inference
+from usability_teleop.cli.commands_prototype import cmd_run_incremental_prototype
 from usability_teleop.cli.commands_rq2 import cmd_run_regression, cmd_run_rq2_end2end
 from usability_teleop.cli.commands_rq3 import (
     cmd_build_figures,
@@ -112,4 +113,16 @@ def build_parser() -> argparse.ArgumentParser:
     rq23.add_argument("--max-models", type=int, default=None)
     rq23.add_argument("--workers", type=int, default=1)
     rq23.set_defaults(func=cmd_run_rq23_end2end)
+
+    proto = sub.add_parser("run-incremental-prototype", help="Run fast incremental prototype experiments")
+    proto.add_argument("--data-dir", default="data/raw")
+    proto.add_argument("--tables-dir", default="outputs/tables")
+    proto.add_argument("--seed", type=int, default=42)
+    proto.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    proto.add_argument("--max-models", type=int, default=2)
+    proto.add_argument("--max-feature-sets", type=int, default=2)
+    proto.add_argument("--top-k-per-axis", type=int, default=25)
+    proto.add_argument("--class-balance", choices=["none", "oversample", "undersample"], default="oversample")
+    proto.add_argument("--workers", type=int, default=1)
+    proto.set_defaults(func=cmd_run_incremental_prototype)
     return parser
