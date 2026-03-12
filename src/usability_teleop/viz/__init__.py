@@ -13,6 +13,11 @@ from usability_teleop.viz.inference_figures import (
     plot_inference_pvalues,
     plot_inference_regression_ci,
 )
+from usability_teleop.viz.study_figures import (
+    plot_study_delta_heatmap,
+    plot_study_stage_summary,
+    plot_study_target_distributions,
+)
 from usability_teleop.viz.theme import apply_publication_theme
 
 __all__ = [
@@ -26,4 +31,7 @@ __all__ = [
     "plot_inference_classification_ci",
     "plot_inference_pvalues",
     "plot_inference_bayesian",
+    "plot_study_stage_summary",
+    "plot_study_delta_heatmap",
+    "plot_study_target_distributions",
 ]

@@ -14,7 +14,7 @@ from usability_teleop.modeling.registry import classification_model_specs, regre
 
 
 @dataclass(frozen=True)
-class PrototypeOutputs:
+class StudyOutputs:
     summary: pd.DataFrame
     breakdown: pd.DataFrame
     feature_filter_summary: pd.DataFrame
@@ -39,7 +39,7 @@ def _best_classification_scores(df: pd.DataFrame) -> pd.DataFrame:
     return best[["track", "target", "metric", "value"]]
 
 
-def run_incremental_prototype(
+def run_ablation_study(
     x_base: pd.DataFrame,
     y_reg: pd.DataFrame,
     y_cls: pd.DataFrame,
@@ -56,7 +56,7 @@ def run_incremental_prototype(
     inner_shuffle: bool,
     inner_seed: int,
     logger: object | None = None,
-) -> PrototypeOutputs:
+) -> StudyOutputs:
     feature_sets = generate_ee_quat_feature_sets(include_average=True)
     reg_models = regression_model_specs()[:max_models]
     cls_models = classification_model_specs()[:max_models]
@@ -64,8 +64,8 @@ def run_incremental_prototype(
 
     stages = [
         ("baseline", x_base, "none"),
-        ("feature_filter", x_filtered, "none"),
-        ("feature_filter_balance", x_filtered, class_balance),
+        ("variance_screen", x_filtered, "none"),
+        ("variance_screen_balanced", x_filtered, class_balance),
     ]
     summary_rows: list[dict[str, object]] = []
     breakdown_frames: list[pd.DataFrame] = []
@@ -74,7 +74,7 @@ def run_incremental_prototype(
         t0 = time.perf_counter()
         if logger is not None:
             logger.info(
-                "prototype stage=%s | users=%s cols=%s rebalance=%s",
+                "study stage=%s | users=%s cols=%s rebalance=%s",
                 stage_name,
                 len(x_user),
                 x_user.shape[1],
@@ -138,7 +138,7 @@ def run_incremental_prototype(
         base = baseline_map.get(key, float("nan"))
         deltas.append(float(row["value"]) - base if np.isfinite(base) else float("nan"))
     breakdown["delta_vs_baseline"] = deltas
-    return PrototypeOutputs(
+    return StudyOutputs(
         summary=pd.DataFrame(summary_rows),
         breakdown=breakdown,
         feature_filter_summary=feature_filter_summary,

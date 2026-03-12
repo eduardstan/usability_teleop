@@ -1,4 +1,4 @@
-"""Preprocessing helpers for prototype experiments."""
+"""Preprocessing helpers for study experiments."""
 
 from __future__ import annotations
 
