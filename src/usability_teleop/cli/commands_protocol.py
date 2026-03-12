@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -176,6 +178,35 @@ def _build_publication_figures(
         inf_cls_df,
         figures_dir / "figure_protocol_dashboard.png",
     )
+
+
+def _load_csv_or_warn(path: Path, logger: object) -> pd.DataFrame:
+    if not path.exists():
+        logger.warning("missing table input: %s", path)
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("failed to read %s (%s); skipping dependent figures", path, exc)
+        return pd.DataFrame()
+
+
+def _run_plot(
+    plot_fn: Callable[..., None],
+    output_path: Path,
+    logger: object,
+    *args: Any,
+) -> bool:
+    try:
+        plot_fn(*args, output_path)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("failed to build figure %s (%s)", output_path.name, exc)
+        return False
+    if output_path.exists():
+        logger.info("figure written: %s", output_path)
+        return True
+    logger.warning("figure skipped (insufficient data): %s", output_path.name)
+    return False
 
 
 def _build_global_vs_target_specific_comparison(reg_df: pd.DataFrame) -> pd.DataFrame:
@@ -393,10 +424,6 @@ def cmd_run_final_explainability(args: argparse.Namespace, logger: object) -> in
     return 0
 
 
-def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
-    return cmd_build_paper_artifacts(args, logger)
-
-
 def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
@@ -449,7 +476,7 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
     try:
         bundle, x_user = prepare_aligned_inputs(source_dir)
     except DataValidationError as exc:
-        logger.error("run-paper-pipeline FAILED: %s", exc)
+        logger.error("build-paper-artifacts FAILED: %s", exc)
         return 1
     y_corr = prepare_targets(bundle.questionnaire, stage="correlation")
     corr_df = run_correlation_analysis(
@@ -511,5 +538,156 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
         tables_dir,
         figures_dir,
         exp.shap.max_targets_default,
+    )
+    return 0
+
+
+def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
+    from usability_teleop.viz.figures import (
+        plot_classification_overview,
+        plot_correlation_heatmap,
+        plot_global_vs_target_specific_r2,
+        plot_permutation_summary,
+        plot_protocol_dashboard,
+        plot_regression_overview,
+    )
+    from usability_teleop.viz.inference_figures import (
+        plot_inference_bayesian,
+        plot_inference_classification_ci,
+        plot_inference_pvalues,
+        plot_inference_regression_ci,
+    )
+
+    tables_dir = Path(args.tables_dir).resolve()
+    figures_dir = Path(args.figures_dir).resolve()
+    runs_dir = Path(args.runs_dir).resolve()
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    runs_dir.mkdir(parents=True, exist_ok=True)
+
+    corr_df = _load_csv_or_warn(tables_dir / "correlation_results.csv", logger)
+    reg_df = _load_csv_or_warn(tables_dir / "estimation_regression.csv", logger)
+    cls_df = _load_csv_or_warn(tables_dir / "estimation_classification.csv", logger)
+    reg_perm_df = _load_csv_or_warn(tables_dir / "permutation_regression_results.csv", logger)
+    cls_perm_df = _load_csv_or_warn(tables_dir / "permutation_classification_results.csv", logger)
+    comparison_df = _load_csv_or_warn(tables_dir / "regression_best_global_vs_target_specific.csv", logger)
+    inf_reg_df = _load_csv_or_warn(tables_dir / "inference_regression.csv", logger)
+    inf_cls_df = _load_csv_or_warn(tables_dir / "inference_classification.csv", logger)
+
+    built: list[str] = []
+    skipped: list[str] = []
+
+    def _mark_skip(fig_name: str, reason: str) -> None:
+        logger.warning("figure skipped: %s (%s)", fig_name, reason)
+        skipped.append(fig_name)
+
+    if {"pearson_highlight", "pearson_r", "feature", "target"}.issubset(corr_df.columns):
+        if _run_plot(plot_correlation_heatmap, figures_dir / "figure_correlation_heatmap.png", logger, corr_df):
+            built.append("figure_correlation_heatmap.png")
+        else:
+            skipped.append("figure_correlation_heatmap.png")
+    else:
+        _mark_skip("figure_correlation_heatmap.png", "missing correlation columns")
+
+    if _run_plot(plot_regression_overview, figures_dir / "figure_regression_overview.png", logger, reg_df):
+        built.append("figure_regression_overview.png")
+    else:
+        skipped.append("figure_regression_overview.png")
+
+    if _run_plot(plot_classification_overview, figures_dir / "figure_classification_overview.png", logger, cls_df):
+        built.append("figure_classification_overview.png")
+    else:
+        skipped.append("figure_classification_overview.png")
+
+    if _run_plot(
+        plot_permutation_summary,
+        figures_dir / "figure_permutation_pvalues.png",
+        logger,
+        reg_perm_df,
+        cls_perm_df,
+    ):
+        built.append("figure_permutation_pvalues.png")
+    else:
+        skipped.append("figure_permutation_pvalues.png")
+
+    if _run_plot(
+        plot_global_vs_target_specific_r2,
+        figures_dir / "figure_regression_global_vs_target_specific.png",
+        logger,
+        comparison_df,
+    ):
+        built.append("figure_regression_global_vs_target_specific.png")
+    else:
+        skipped.append("figure_regression_global_vs_target_specific.png")
+
+    if _run_plot(plot_inference_regression_ci, figures_dir / "figure_inference_regression_ci.png", logger, inf_reg_df):
+        built.append("figure_inference_regression_ci.png")
+    else:
+        skipped.append("figure_inference_regression_ci.png")
+
+    if _run_plot(
+        plot_inference_classification_ci,
+        figures_dir / "figure_inference_classification_ci.png",
+        logger,
+        inf_cls_df,
+    ):
+        built.append("figure_inference_classification_ci.png")
+    else:
+        skipped.append("figure_inference_classification_ci.png")
+
+    if _run_plot(
+        plot_inference_pvalues,
+        figures_dir / "figure_inference_pvalues.png",
+        logger,
+        inf_reg_df,
+        inf_cls_df,
+    ):
+        built.append("figure_inference_pvalues.png")
+    else:
+        skipped.append("figure_inference_pvalues.png")
+
+    if _run_plot(
+        plot_inference_bayesian,
+        figures_dir / "figure_inference_bayesian.png",
+        logger,
+        inf_reg_df,
+        inf_cls_df,
+    ):
+        built.append("figure_inference_bayesian.png")
+    else:
+        skipped.append("figure_inference_bayesian.png")
+
+    has_dashboard_inputs = any(
+        not df.empty for df in [comparison_df, reg_perm_df, cls_perm_df, inf_reg_df, inf_cls_df]
+    )
+    if has_dashboard_inputs:
+        if _run_plot(
+            plot_protocol_dashboard,
+            figures_dir / "figure_protocol_dashboard.png",
+            logger,
+            comparison_df,
+            reg_perm_df,
+            cls_perm_df,
+            inf_reg_df,
+            inf_cls_df,
+        ):
+            built.append("figure_protocol_dashboard.png")
+        else:
+            skipped.append("figure_protocol_dashboard.png")
+    else:
+        _mark_skip("figure_protocol_dashboard.png", "no dashboard inputs available")
+
+    report_path = runs_dir / "build_figures_report.json"
+    report = {
+        "tables_dir": str(tables_dir),
+        "figures_dir": str(figures_dir),
+        "built_figures": built,
+        "skipped_figures": skipped,
+    }
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    logger.info(
+        "build-figures completed | built=%s skipped=%s report=%s",
+        len(built),
+        len(skipped),
+        report_path,
     )
     return 0

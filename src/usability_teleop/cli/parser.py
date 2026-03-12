@@ -91,23 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
     art.add_argument("--nested-permutation", action="store_true")
     art.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_paper_artifacts"))
 
-    pipe = sub.add_parser(
-        "run-paper-pipeline",
-        help="Compatibility alias for build-paper-artifacts",
+    figs = sub.add_parser(
+        "build-figures",
+        help="Build publication figures from existing CSV tables (no training/stat recompute)",
     )
-    pipe.add_argument("--data-dir", default="data/raw")
-    pipe.add_argument("--tables-dir", default="outputs/tables")
-    pipe.add_argument("--figures-dir", default="outputs/figures")
-    pipe.add_argument("--seed", type=int, default=42)
-    pipe.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    pipe.add_argument("--max-models", type=int, default=None)
-    pipe.add_argument("--max-feature-sets", type=int, default=None)
-    pipe.add_argument("--top-k-per-axis", type=int, default=None)
-    pipe.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
-    pipe.add_argument("--max-targets", type=int, default=5)
-    pipe.add_argument("--alpha", type=float, default=0.05)
-    pipe.add_argument("--effect-threshold", type=float, default=0.30)
-    pipe.add_argument("--n-permutations", type=int, default=None)
-    pipe.add_argument("--nested-permutation", action="store_true")
-    pipe.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_paper_pipeline"))
+    figs.add_argument("--tables-dir", default="outputs/tables")
+    figs.add_argument("--figures-dir", default="outputs/figures")
+    figs.add_argument("--runs-dir", default="outputs/runs")
+    figs.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_figures"))
     return parser

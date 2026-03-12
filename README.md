@@ -6,7 +6,8 @@ This repository is the clean, reproducible implementation track for validating c
 - Unified protocol lanes implemented:
   - Estimation lane (`run-estimation`): nested LOSO only.
   - Final-model lane (`fit-final-models` + `run-final-explainability`).
-- Unified orchestrator available: `run-paper-pipeline`.
+- Statistical validation lane (`run-stat-validation`).
+- Figure assembly lane (`build-figures`) from existing CSVs.
 
 ## Repository Layout
 - `src/usability_teleop/`: package code (data, features, modeling, stats, viz, cli)
@@ -41,8 +42,8 @@ usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables 
 usability-teleop run-stat-validation --data-dir data/raw --tables-dir outputs/tables --max-models 2 --max-feature-sets 2 --n-permutations 100
 usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables
 usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --experiment-config configs/experiment.yaml --max-targets 5
+usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
 usability-teleop build-paper-artifacts --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-models 2 --max-feature-sets 2
-usability-teleop run-paper-pipeline --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-models 2 --max-feature-sets 2
 pytest
 ruff check .
 ruff format --check .
@@ -58,8 +59,8 @@ Notes:
 - Every run command accepts `--experiment-config path/to/experiment.yaml` to override protocol defaults.
 - `run-final-explainability` explains only final refit models; no OOF explainability mode is used.
 - `run-stat-validation` computes permutation and inference tables (p-values, CI, global-vs-local summary) from estimation outputs.
-- `build-paper-artifacts` is the primary unified end-to-end command for publication tables and figures.
-- `run-paper-pipeline` is a compatibility alias to `build-paper-artifacts`.
+- `build-figures` only reads `outputs/tables/*.csv` and generates figures; it logs skipped figures when required inputs are missing and writes a report to `outputs/runs/build_figures_report.json`.
+- `build-paper-artifacts` is a convenience end-to-end command (data -> tables -> figures -> final models -> SHAP).
 
 ## Working Rules
 - All production implementation goes under `src/`.
