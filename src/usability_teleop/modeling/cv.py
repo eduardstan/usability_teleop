@@ -6,6 +6,8 @@ from collections import Counter
 from typing import Any
 
 import numpy as np
+import warnings
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.model_selection import GridSearchCV, KFold, LeaveOneOut, StratifiedKFold
 
 
@@ -64,7 +66,14 @@ def fit_with_tuning(
 ) -> tuple[Any, dict[str, Any]]:
     """Fit estimator directly or with grid search depending on CV availability."""
     if cv is None or not param_grid:
-        estimator.fit(x_train, y_train)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=ConvergenceWarning)
+            warnings.filterwarnings(
+                "ignore",
+                message="Only one sample available. You may want to reshape your data array",
+                category=UserWarning,
+            )
+            estimator.fit(x_train, y_train)
         return estimator, {}
 
     search = GridSearchCV(
@@ -74,5 +83,12 @@ def fit_with_tuning(
         cv=cv,
         n_jobs=1,
     )
-    search.fit(x_train, y_train)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        warnings.filterwarnings(
+            "ignore",
+            message="Only one sample available. You may want to reshape your data array",
+            category=UserWarning,
+        )
+        search.fit(x_train, y_train)
     return search.best_estimator_, dict(search.best_params_)
