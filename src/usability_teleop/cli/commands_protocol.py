@@ -11,24 +11,24 @@ from usability_teleop.cli.common import DataValidationError, prepare_aligned_inp
 from usability_teleop.data.targets import prepare_targets
 from usability_teleop.evaluation.correlation import CorrelationConfig, run_correlation_analysis
 from usability_teleop.protocol.estimation import run_estimation_lane
-from usability_teleop.protocol.explainability import run_final_explainability
 from usability_teleop.protocol.final_models import fit_final_models
+from usability_teleop.protocol.validation import (
+    validate_estimation_best_configs,
+    validate_final_models_table,
+)
 
 
-def cmd_run_estimation(args: argparse.Namespace, logger: object) -> int:
+def _run_estimation(
+    x_user: pd.DataFrame,
+    questionnaire: pd.DataFrame,
+    args: argparse.Namespace,
+    logger: object,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     exp = resolve_experiment_config(args.experiment_config)
-    source_dir = Path(args.data_dir).resolve()
-    tables_dir = Path(args.tables_dir).resolve()
-    tables_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        bundle, x_user = prepare_aligned_inputs(source_dir)
-    except DataValidationError as exc:
-        logger.error("run-estimation FAILED: %s", exc)
-        return 1
     outputs = run_estimation_lane(
         x_user=x_user,
-        y_reg=prepare_targets(bundle.questionnaire, "regression"),
-        y_cls=prepare_targets(bundle.questionnaire, "classification"),
+        y_reg=prepare_targets(questionnaire, "regression"),
+        y_cls=prepare_targets(questionnaire, "classification"),
         seed=args.seed,
         max_models=args.max_models,
         max_feature_sets=args.max_feature_sets,
@@ -42,31 +42,25 @@ def cmd_run_estimation(args: argparse.Namespace, logger: object) -> int:
         class_balance=args.class_balance,
         logger=logger,
     )
-    outputs.regression.to_csv(tables_dir / "estimation_regression.csv", index=False)
-    outputs.classification.to_csv(tables_dir / "estimation_classification.csv", index=False)
-    outputs.best_configs.to_csv(tables_dir / "estimation_best_configs.csv", index=False)
-    logger.info("estimation tables written to %s", tables_dir)
-    return 0
+    return outputs.regression, outputs.classification, outputs.best_configs
 
 
-def cmd_fit_final_models(args: argparse.Namespace, logger: object) -> int:
+def _fit_final_models(
+    x_user: pd.DataFrame,
+    questionnaire: pd.DataFrame,
+    estimation_best: pd.DataFrame,
+    args: argparse.Namespace,
+    logger: object,
+) -> pd.DataFrame:
+    from usability_teleop.protocol.explainability import run_final_explainability
+
     exp = resolve_experiment_config(args.experiment_config)
-    source_dir = Path(args.data_dir).resolve()
-    tables_dir = Path(args.tables_dir).resolve()
-    best_path = tables_dir / "estimation_best_configs.csv"
-    if not best_path.exists():
-        logger.error("Missing %s", best_path)
-        return 1
-    try:
-        bundle, x_user = prepare_aligned_inputs(source_dir)
-    except DataValidationError as exc:
-        logger.error("fit-final-models FAILED: %s", exc)
-        return 1
-    final_df = fit_final_models(
+    validate_estimation_best_configs(estimation_best)
+    return fit_final_models(
         x_user=x_user,
-        y_reg=prepare_targets(bundle.questionnaire, "regression"),
-        y_cls=prepare_targets(bundle.questionnaire, "classification"),
-        estimation_best=pd.read_csv(best_path),
+        y_reg=prepare_targets(questionnaire, "regression"),
+        y_cls=prepare_targets(questionnaire, "classification"),
+        estimation_best=estimation_best,
         seed=args.seed,
         regression_scoring=exp.tuning.regression_scoring,
         classification_scoring=exp.tuning.classification_scoring,
@@ -78,6 +72,70 @@ def cmd_fit_final_models(args: argparse.Namespace, logger: object) -> int:
         class_balance=args.class_balance,
         logger=logger,
     )
+
+
+def _run_final_shap(
+    x_user: pd.DataFrame,
+    questionnaire: pd.DataFrame,
+    final_models: pd.DataFrame,
+    args: argparse.Namespace,
+    figures_dir: Path,
+) -> pd.DataFrame:
+    from usability_teleop.protocol.explainability import run_final_explainability
+
+    exp = resolve_experiment_config(args.experiment_config)
+    validate_final_models_table(final_models)
+    return run_final_explainability(
+        x_user=x_user,
+        y_reg=prepare_targets(questionnaire, "regression"),
+        final_models=final_models,
+        figure_dir=figures_dir,
+        max_targets=args.max_targets or exp.shap.max_targets_default,
+        seed=args.seed,
+    )
+
+
+def cmd_run_estimation(args: argparse.Namespace, logger: object) -> int:
+    source_dir = Path(args.data_dir).resolve()
+    tables_dir = Path(args.tables_dir).resolve()
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        bundle, x_user = prepare_aligned_inputs(source_dir)
+    except DataValidationError as exc:
+        logger.error("run-estimation FAILED: %s", exc)
+        return 1
+    reg_df, cls_df, best_df = _run_estimation(x_user, bundle.questionnaire, args, logger)
+    reg_df.to_csv(tables_dir / "estimation_regression.csv", index=False)
+    cls_df.to_csv(tables_dir / "estimation_classification.csv", index=False)
+    best_df.to_csv(tables_dir / "estimation_best_configs.csv", index=False)
+    logger.info("estimation tables written to %s", tables_dir)
+    return 0
+
+
+def cmd_fit_final_models(args: argparse.Namespace, logger: object) -> int:
+    source_dir = Path(args.data_dir).resolve()
+    tables_dir = Path(args.tables_dir).resolve()
+    best_path = tables_dir / "estimation_best_configs.csv"
+    if not best_path.exists():
+        logger.error("Missing %s", best_path)
+        return 1
+    try:
+        bundle, x_user = prepare_aligned_inputs(source_dir)
+    except DataValidationError as exc:
+        logger.error("fit-final-models FAILED: %s", exc)
+        return 1
+    try:
+        estimation_best = pd.read_csv(best_path)
+        final_df = _fit_final_models(
+            x_user,
+            bundle.questionnaire,
+            estimation_best,
+            args,
+            logger,
+        )
+    except (ValueError, KeyError) as exc:
+        logger.error("fit-final-models FAILED: %s", exc)
+        return 1
     final_df.to_csv(tables_dir / "final_models.csv", index=False)
     logger.info("final models table written to %s", tables_dir / "final_models.csv")
     return 0
@@ -96,20 +154,25 @@ def cmd_run_final_explainability(args: argparse.Namespace, logger: object) -> in
     except DataValidationError as exc:
         logger.error("run-final-explainability FAILED: %s", exc)
         return 1
-    shap_df = run_final_explainability(
-        x_user=x_user,
-        y_reg=prepare_targets(bundle.questionnaire, "regression"),
-        final_models=pd.read_csv(final_path),
-        figure_dir=figures_dir,
-        max_targets=args.max_targets,
-        seed=args.seed,
-    )
+    try:
+        final_models = pd.read_csv(final_path)
+        shap_df = _run_final_shap(
+            x_user,
+            bundle.questionnaire,
+            final_models,
+            args,
+            figures_dir,
+        )
+    except (ValueError, KeyError) as exc:
+        logger.error("run-final-explainability FAILED: %s", exc)
+        return 1
     shap_df.to_csv(tables_dir / "final_explainability_shap.csv", index=False)
     logger.info("final explainability artifacts written to %s and %s", tables_dir, figures_dir)
     return 0
 
 
 def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
+    exp = resolve_experiment_config(args.experiment_config)
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
     figures_dir = Path(args.figures_dir).resolve()
@@ -121,16 +184,37 @@ def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
         logger.error("run-paper-pipeline FAILED: %s", exc)
         return 1
     y_corr = prepare_targets(bundle.questionnaire, stage="correlation")
-    corr_df = run_correlation_analysis(x_user, y_corr, CorrelationConfig(alpha=args.alpha, effect_threshold=args.effect_threshold))
+    corr_df = run_correlation_analysis(
+        x_user,
+        y_corr,
+        CorrelationConfig(alpha=args.alpha, effect_threshold=args.effect_threshold),
+    )
     corr_df.to_csv(tables_dir / "correlation_results.csv", index=False)
-    rc = cmd_run_estimation(args, logger)
-    if rc != 0:
-        return rc
-    rc = cmd_fit_final_models(args, logger)
-    if rc != 0:
-        return rc
-    rc = cmd_run_final_explainability(args, logger)
-    if rc != 0:
-        return rc
-    logger.info("paper pipeline completed | tables=%s figures=%s", tables_dir, figures_dir)
+    logger.info("correlation table written to %s", tables_dir / "correlation_results.csv")
+
+    try:
+        reg_df, cls_df, best_df = _run_estimation(x_user, bundle.questionnaire, args, logger)
+        reg_df.to_csv(tables_dir / "estimation_regression.csv", index=False)
+        cls_df.to_csv(tables_dir / "estimation_classification.csv", index=False)
+        best_df.to_csv(tables_dir / "estimation_best_configs.csv", index=False)
+        logger.info("estimation tables written to %s", tables_dir)
+
+        final_df = _fit_final_models(x_user, bundle.questionnaire, best_df, args, logger)
+        final_df.to_csv(tables_dir / "final_models.csv", index=False)
+        logger.info("final models table written to %s", tables_dir / "final_models.csv")
+
+        shap_df = _run_final_shap(x_user, bundle.questionnaire, final_df, args, figures_dir)
+        shap_df.to_csv(tables_dir / "final_explainability_shap.csv", index=False)
+        logger.info("final explainability table written to %s", tables_dir / "final_explainability_shap.csv")
+    except (ValueError, KeyError) as exc:
+        logger.error("run-paper-pipeline FAILED: %s", exc)
+        return 1
+    logger.info(
+        "paper protocol pipeline completed | tables=%s figures=%s | note: "
+        "permutation/inference not included in unified protocol lane | "
+        "shap.max_targets_default=%s",
+        tables_dir,
+        figures_dir,
+        exp.shap.max_targets_default,
+    )
     return 0

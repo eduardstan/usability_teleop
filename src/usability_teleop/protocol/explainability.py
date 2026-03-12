@@ -35,12 +35,25 @@ def run_final_explainability(
         target = str(row["target"])
         fs_name = str(row["feature_set"])
         model_name = str(row["model"])
+        if target not in y_reg.columns:
+            raise ValueError(f"Unknown regression target in final_models: {target}")
+        if fs_name not in fs_specs:
+            raise ValueError(f"Unknown feature_set in final_models: {fs_name}")
+        if model_name not in reg_specs:
+            raise ValueError(f"Unknown regression model in final_models: {model_name}")
         params = _json_to_dict(str(row["final_params"]))
         selected = _json_to_list(str(row["selected_features"]))
 
         fs = fs_specs[fs_name]
         spec = reg_specs[model_name]
-        x_fs = build_feature_set(x_user, fs)[selected].copy()
+        x_full = build_feature_set(x_user, fs)
+        missing_selected = [col for col in selected if col not in x_full.columns]
+        if missing_selected:
+            raise ValueError(
+                "final_models selected_features contains columns not present in "
+                f"feature_set '{fs_name}': {missing_selected}"
+            )
+        x_fs = x_full[selected].copy()
         y = y_reg[target].to_numpy(dtype=float)
 
         scaler = StandardScaler()

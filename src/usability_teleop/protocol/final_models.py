@@ -47,12 +47,18 @@ def fit_final_models(
         target = str(row["target"])
         fs_name = str(row["feature_set"])
         model_name = str(row["model"])
+        if fs_name not in fs_specs:
+            raise ValueError(f"Unknown feature_set in estimation_best_configs: {fs_name}")
         fs = fs_specs[fs_name]
         x_fs = build_feature_set(x_user, fs)
         x_selected, selected_cols = select_full_features(x_fs, selection_cfg)
         scaler = StandardScaler()
         x_scaled = scaler.fit_transform(x_selected.to_numpy(dtype=float))
         if track == "regression":
+            if target not in y_reg.columns:
+                raise ValueError(f"Unknown regression target in estimation_best_configs: {target}")
+            if model_name not in reg_specs:
+                raise ValueError(f"Unknown regression model in estimation_best_configs: {model_name}")
             y = y_reg[target].to_numpy(dtype=float)
             spec = reg_specs[model_name]
             model, params = fit_with_tuning(
@@ -73,6 +79,12 @@ def fit_final_models(
                 _row(track, target, fs_name, model_name, params, selected_cols, {"selection_score": float(row["selection_score"])})
             )
         else:
+            if track != "classification":
+                raise ValueError(f"Unsupported track in estimation_best_configs: {track}")
+            if target not in y_cls.columns:
+                raise ValueError(f"Unknown classification target in estimation_best_configs: {target}")
+            if model_name not in cls_specs:
+                raise ValueError(f"Unknown classification model in estimation_best_configs: {model_name}")
             y_cont = y_cls[target].to_numpy(dtype=float)
             threshold = float(row["threshold"]) if "threshold" in row and np.isfinite(float(row["threshold"])) else float(np.median(y_cont))
             y_bin = (y_cont >= threshold).astype(int)

@@ -37,17 +37,9 @@ python -m pip install -e .[dev]
 ```bash
 usability-teleop doctor
 usability-teleop validate-data --source-dir data/raw --copy-to-raw
-usability-teleop run-correlation --data-dir data/raw
-usability-teleop run-regression --data-dir data/raw --max-feature-sets 2 --max-models 2 --workers 2
-usability-teleop run-classification --data-dir data/raw --max-feature-sets 2 --max-models 2
-usability-teleop run-permutation --data-dir data/raw --tables-dir outputs/tables --max-feature-sets 2 --max-models 2 --n-permutations 50
-usability-teleop run-inference --data-dir data/raw --tables-dir outputs/tables --max-feature-sets 2 --max-models 2
-usability-teleop run-shap --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-feature-sets 2 --max-models 2 --max-targets 3
-usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures
-usability-teleop run-rq2-end2end --data-dir data/raw --max-models 10 --workers 4
 usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --max-models 2 --max-feature-sets 2 --class-balance none
 usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables
-usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-targets 5
+usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --experiment-config configs/experiment.yaml --max-targets 5
 usability-teleop run-paper-pipeline --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-models 2 --max-feature-sets 2
 pytest
 ruff check .
@@ -63,6 +55,7 @@ Notes:
 - `configs/experiment.yaml` defines protocol settings (tuning metric, inner-CV behavior, permutation alpha/defaults, SHAP defaults).
 - Every run command accepts `--experiment-config path/to/experiment.yaml` to override protocol defaults.
 - `run-final-explainability` explains only final refit models; no OOF explainability mode is used.
+- `run-paper-pipeline` is the unified protocol pipeline (RQ1 + estimation + final-model explainability).
 
 ## Working Rules
 - All production implementation goes under `src/`.

@@ -39,7 +39,7 @@ def _top_variance_cols_by_axis(x_df: pd.DataFrame, top_k_per_axis: int) -> list[
     if top_k_per_axis <= 0:
         raise ValueError("top_k_per_axis must be > 0")
 
-    axes = ("x", "y", "z", "w")
+    axes = ("x", "y", "z", "w", "avg")
     keep: set[str] = set()
     for axis in axes:
         axis_cols = [col for col in x_df.columns if f"_ee_quat.{axis}" in col]
@@ -48,6 +48,8 @@ def _top_variance_cols_by_axis(x_df: pd.DataFrame, top_k_per_axis: int) -> list[
         variances = x_df[axis_cols].var(axis=0).sort_values(ascending=False)
         keep.update(variances.index[:top_k_per_axis].tolist())
     keep.update([col for col in x_df.columns if "_ee_quat." not in col])
+    if not keep:
+        return list(x_df.columns)
     return sorted(keep)
 
 
