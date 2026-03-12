@@ -6,6 +6,7 @@ import argparse
 
 from usability_teleop.cli.commands_basic import cmd_doctor, cmd_run_correlation, cmd_validate_data
 from usability_teleop.cli.commands_inference import cmd_run_inference
+from usability_teleop.cli.commands_study import cmd_run_ablation_study
 from usability_teleop.cli.commands_rq2 import cmd_run_regression, cmd_run_rq2_end2end
 from usability_teleop.cli.commands_rq3 import (
     cmd_build_figures,
@@ -112,4 +113,17 @@ def build_parser() -> argparse.ArgumentParser:
     rq23.add_argument("--max-models", type=int, default=None)
     rq23.add_argument("--workers", type=int, default=1)
     rq23.set_defaults(func=cmd_run_rq23_end2end)
+
+    study = sub.add_parser("run-ablation-study", help="Run ablation study with feature screening and balancing")
+    study.add_argument("--data-dir", default="data/raw")
+    study.add_argument("--tables-dir", default="outputs/tables")
+    study.add_argument("--figures-dir", default="outputs/figures")
+    study.add_argument("--seed", type=int, default=42)
+    study.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    study.add_argument("--max-models", type=int, default=2)
+    study.add_argument("--max-feature-sets", type=int, default=2)
+    study.add_argument("--top-k-per-axis", type=int, default=25)
+    study.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="smote")
+    study.add_argument("--workers", type=int, default=1)
+    study.set_defaults(func=cmd_run_ablation_study)
     return parser

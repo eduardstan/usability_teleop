@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from collections import Counter
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score
+from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
 from usability_teleop.features.ee_quat import FeatureSetSpec, build_feature_set
 from usability_teleop.modeling.cv import classification_inner_cv, fit_with_tuning, loso_indices
 from usability_teleop.modeling.registry import ModelSpec, build_estimator
+
+ClassBalanceMode = Literal["none", "oversample", "undersample", "smote"]
 
 
 def _auc_from_estimator(estimator: Any, x_test: np.ndarray) -> float:
@@ -30,6 +34,71 @@ def _auc_from_estimator(estimator: Any, x_test: np.ndarray) -> float:
     return float(pred[0])
 
 
+def _rebalance_binary_train(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    method: ClassBalanceMode,
+    random_seed: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    if method == "none":
+        return x_train, y_train
+
+    counts = Counter(y_train.tolist())
+    if len(counts) < 2:
+        return x_train, y_train
+
+    values = np.asarray(sorted(counts.keys()), dtype=int)
+    c0 = counts[int(values[0])]
+    c1 = counts[int(values[1])]
+    if c0 == c1:
+        return x_train, y_train
+
+    rng = np.random.default_rng(random_seed)
+    idx0 = np.where(y_train == int(values[0]))[0]
+    idx1 = np.where(y_train == int(values[1]))[0]
+    if c0 < c1:
+        minor_idx, major_idx = idx0, idx1
+    else:
+        minor_idx, major_idx = idx1, idx0
+
+    if method == "smote":
+        n_needed = len(major_idx) - len(minor_idx)
+        if n_needed <= 0:
+            return x_train, y_train
+        x_minor = x_train[minor_idx]
+        if len(minor_idx) < 2:
+            extra = rng.choice(minor_idx, size=n_needed, replace=True)
+            keep_idx = np.concatenate([major_idx, minor_idx, extra])
+            rng.shuffle(keep_idx)
+            return x_train[keep_idx], y_train[keep_idx]
+        k_neighbors = min(5, len(minor_idx) - 1)
+        nn = NearestNeighbors(n_neighbors=k_neighbors + 1)
+        nn.fit(x_minor)
+        neigh_idx = nn.kneighbors(x_minor, return_distance=False)
+        synth: list[np.ndarray] = []
+        for _ in range(n_needed):
+            base_row = int(rng.integers(0, len(minor_idx)))
+            cand = neigh_idx[base_row][1:]
+            neigh_row = int(cand[rng.integers(0, len(cand))])
+            lam = float(rng.random())
+            x_new = x_minor[base_row] + lam * (x_minor[neigh_row] - x_minor[base_row])
+            synth.append(x_new)
+        x_synth = np.vstack(synth)
+        y_synth = np.full(len(synth), y_train[minor_idx[0]], dtype=y_train.dtype)
+        x_out = np.vstack([x_train, x_synth])
+        y_out = np.concatenate([y_train, y_synth])
+        return x_out, y_out
+
+    if method == "oversample":
+        extra = rng.choice(minor_idx, size=len(major_idx) - len(minor_idx), replace=True)
+        keep_idx = np.concatenate([major_idx, minor_idx, extra])
+    else:
+        major_keep = rng.choice(major_idx, size=len(minor_idx), replace=False)
+        keep_idx = np.concatenate([minor_idx, major_keep])
+    rng.shuffle(keep_idx)
+    return x_train[keep_idx], y_train[keep_idx]
+
+
 def run_classification_benchmark(
     x_user: pd.DataFrame,
     y_cls: pd.DataFrame,
@@ -41,6 +110,7 @@ def run_classification_benchmark(
     inner_cv_max_splits: int = 3,
     inner_cv_shuffle: bool = True,
     inner_cv_seed: int = 42,
+    class_balance: ClassBalanceMode = "none",
 ) -> pd.DataFrame:
     """Run median-split binary classification LOSO benchmark."""
     selected_sets = feature_sets[: max_feature_sets or len(feature_sets)]
@@ -76,6 +146,12 @@ def run_classification_benchmark(
                     x_train = x_fs.iloc[train_idx].to_numpy(dtype=float)
                     x_test = x_fs.iloc[test_idx].to_numpy(dtype=float)
                     y_train = y_bin[train_idx]
+                    x_train, y_train = _rebalance_binary_train(
+                        x_train,
+                        y_train,
+                        class_balance,
+                        random_seed + int(test_idx[0]),
+                    )
 
                     scaler = StandardScaler()
                     x_train_s = scaler.fit_transform(x_train)
