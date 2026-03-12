@@ -5,6 +5,7 @@ from usability_teleop.viz.figures import (
     plot_correlation_heatmap,
     plot_global_vs_target_specific_r2,
     plot_permutation_summary,
+    plot_protocol_dashboard,
     plot_regression_overview,
 )
 from usability_teleop.viz.inference_figures import (
@@ -27,6 +28,7 @@ __all__ = [
     "plot_global_vs_target_specific_r2",
     "plot_classification_overview",
     "plot_permutation_summary",
+    "plot_protocol_dashboard",
     "plot_inference_regression_ci",
     "plot_inference_classification_ci",
     "plot_inference_pvalues",

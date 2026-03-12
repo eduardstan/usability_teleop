@@ -152,3 +152,78 @@ def plot_global_vs_target_specific_r2(comparison_df: pd.DataFrame, output_path: 
     ax.set_ylabel("Target")
     ax.legend(loc="best")
     _save(fig, output_path)
+
+
+def plot_protocol_dashboard(
+    comparison_df: pd.DataFrame,
+    perm_reg_df: pd.DataFrame,
+    perm_cls_df: pd.DataFrame,
+    inf_reg_df: pd.DataFrame,
+    inf_cls_df: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    """2x2 executive dashboard for key statistical outcomes."""
+    apply_publication_theme()
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+    ax1, ax2, ax3, ax4 = axes.flatten()
+
+    if not comparison_df.empty:
+        top = comparison_df.sort_values("delta_r2", ascending=False).head(8)
+        sns.barplot(data=top, x="delta_r2", y="target", color=PRIMARY_BLUE, ax=ax1)
+        ax1.axvline(0.0, color=NEUTRAL_DARK, linestyle="--", linewidth=1)
+    ax1.set_title("Delta R2 (Local - Global)")
+    ax1.set_xlabel("delta R2")
+    ax1.set_ylabel("Target")
+
+    perm_frames: list[pd.DataFrame] = []
+    if not perm_reg_df.empty:
+        t = perm_reg_df[["target", "p_value"]].copy()
+        t["track"] = "regression"
+        perm_frames.append(t)
+    if not perm_cls_df.empty:
+        t = perm_cls_df[["target", "p_value"]].copy()
+        t["track"] = "classification"
+        perm_frames.append(t)
+    if perm_frames:
+        perm_all = pd.concat(perm_frames, ignore_index=True)
+        sns.histplot(data=perm_all, x="p_value", hue="track", bins=10, element="step", stat="count", ax=ax2)
+        ax2.axvline(0.05, color=PRIMARY_RED, linestyle="--", linewidth=1)
+    ax2.set_title("Permutation p-value Distribution")
+    ax2.set_xlabel("p-value")
+    ax2.set_ylabel("count")
+
+    inf_frames: list[pd.DataFrame] = []
+    if not inf_reg_df.empty:
+        t = inf_reg_df[["target", "bayes_prob_improvement"]].copy()
+        t["track"] = "regression"
+        inf_frames.append(t)
+    if not inf_cls_df.empty:
+        t = inf_cls_df[["target", "bayes_prob_improvement"]].copy()
+        t["track"] = "classification"
+        inf_frames.append(t)
+    if inf_frames:
+        inf_all = pd.concat(inf_frames, ignore_index=True)
+        sns.boxplot(data=inf_all, x="track", y="bayes_prob_improvement", color=PRIMARY_BLUE, ax=ax3)
+        sns.stripplot(data=inf_all, x="track", y="bayes_prob_improvement", color=NEUTRAL_DARK, size=3, alpha=0.65, ax=ax3)
+        ax3.axhline(0.5, color=NEUTRAL_DARK, linestyle="--", linewidth=1)
+        ax3.axhline(0.95, color=PRIMARY_RED, linestyle=":", linewidth=1)
+    ax3.set_title("Bayesian Improvement Probabilities")
+    ax3.set_xlabel("track")
+    ax3.set_ylabel("P(improvement)")
+
+    sig_reg = int(perm_reg_df["significant"].sum()) if not perm_reg_df.empty and "significant" in perm_reg_df.columns else 0
+    sig_cls = int(perm_cls_df["significant"].sum()) if not perm_cls_df.empty and "significant" in perm_cls_df.columns else 0
+    summary = pd.DataFrame(
+        {
+            "metric": ["sig_reg_targets", "sig_cls_targets"],
+            "value": [sig_reg, sig_cls],
+        }
+    )
+    sns.barplot(data=summary, x="metric", y="value", color=PRIMARY_RED, ax=ax4)
+    ax4.set_title("Significant Targets (p < 0.05)")
+    ax4.set_xlabel("")
+    ax4.set_ylabel("count")
+    for label in ax4.get_xticklabels():
+        label.set_rotation(15)
+
+    _save(fig, output_path)

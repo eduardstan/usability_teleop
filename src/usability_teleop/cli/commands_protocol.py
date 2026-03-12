@@ -23,6 +23,11 @@ from usability_teleop.stats.permutation import (
     run_classification_permutation_tests,
     run_regression_permutation_tests,
 )
+from usability_teleop.stats.inference import (
+    InferenceBundleConfig,
+    run_classification_inference,
+    run_regression_inference,
+)
 
 
 def _run_estimation(
@@ -133,13 +138,24 @@ def _build_publication_figures(
     cls_df: pd.DataFrame,
     reg_perm: pd.DataFrame,
     cls_perm: pd.DataFrame,
+    comparison_df: pd.DataFrame,
+    inf_reg_df: pd.DataFrame,
+    inf_cls_df: pd.DataFrame,
     figures_dir: Path,
 ) -> None:
     from usability_teleop.viz.figures import (
         plot_classification_overview,
         plot_correlation_heatmap,
+        plot_global_vs_target_specific_r2,
         plot_permutation_summary,
+        plot_protocol_dashboard,
         plot_regression_overview,
+    )
+    from usability_teleop.viz.inference_figures import (
+        plot_inference_bayesian,
+        plot_inference_classification_ci,
+        plot_inference_pvalues,
+        plot_inference_regression_ci,
     )
 
     figures_dir.mkdir(parents=True, exist_ok=True)
@@ -147,6 +163,124 @@ def _build_publication_figures(
     plot_regression_overview(reg_df, figures_dir / "figure_regression_overview.png")
     plot_classification_overview(cls_df, figures_dir / "figure_classification_overview.png")
     plot_permutation_summary(reg_perm, cls_perm, figures_dir / "figure_permutation_pvalues.png")
+    plot_global_vs_target_specific_r2(comparison_df, figures_dir / "figure_regression_global_vs_target_specific.png")
+    plot_inference_regression_ci(inf_reg_df, figures_dir / "figure_inference_regression_ci.png")
+    plot_inference_classification_ci(inf_cls_df, figures_dir / "figure_inference_classification_ci.png")
+    plot_inference_pvalues(inf_reg_df, inf_cls_df, figures_dir / "figure_inference_pvalues.png")
+    plot_inference_bayesian(inf_reg_df, inf_cls_df, figures_dir / "figure_inference_bayesian.png")
+    plot_protocol_dashboard(
+        comparison_df,
+        reg_perm,
+        cls_perm,
+        inf_reg_df,
+        inf_cls_df,
+        figures_dir / "figure_protocol_dashboard.png",
+    )
+
+
+def _build_global_vs_target_specific_comparison(reg_df: pd.DataFrame) -> pd.DataFrame:
+    if reg_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "target",
+                "r2_global",
+                "r2_specific",
+                "delta_r2",
+                "model_global",
+                "feature_set_global",
+                "model_specific",
+                "feature_set_specific",
+            ]
+        )
+
+    grouped = (
+        reg_df.groupby(["model", "feature_set"], as_index=False)["r2"]
+        .mean()
+        .rename(columns={"r2": "r2_mean"})
+        .sort_values("r2_mean", ascending=False)
+    )
+    best_global = grouped.iloc[0]
+    g_model = str(best_global["model"])
+    g_feature_set = str(best_global["feature_set"])
+
+    rows: list[dict[str, object]] = []
+    for target in sorted(reg_df["target"].unique().tolist()):
+        target_df = reg_df[reg_df["target"] == target]
+        if target_df.empty:
+            continue
+        best_specific = target_df.sort_values("r2", ascending=False).iloc[0]
+        global_target = target_df[
+            (target_df["model"] == g_model)
+            & (target_df["feature_set"] == g_feature_set)
+        ]
+        if global_target.empty:
+            continue
+        r2_global = float(global_target.iloc[0]["r2"])
+        r2_specific = float(best_specific["r2"])
+        rows.append(
+            {
+                "target": target,
+                "r2_global": r2_global,
+                "r2_specific": r2_specific,
+                "delta_r2": float(r2_specific - r2_global),
+                "model_global": g_model,
+                "feature_set_global": g_feature_set,
+                "model_specific": str(best_specific["model"]),
+                "feature_set_specific": str(best_specific["feature_set"]),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("delta_r2", ascending=False).reset_index(drop=True)
+
+
+def _run_inference_bundle(
+    x_user: pd.DataFrame,
+    questionnaire: pd.DataFrame,
+    reg_df: pd.DataFrame,
+    cls_df: pd.DataFrame,
+    args: argparse.Namespace,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    exp = resolve_experiment_config(args.experiment_config)
+    feature_sets = generate_ee_quat_feature_sets(include_average=exp.feature_sets.include_average)
+    if args.max_feature_sets is not None:
+        feature_sets = feature_sets[: args.max_feature_sets]
+    reg_models = regression_model_specs()[: args.max_models] if args.max_models is not None else regression_model_specs()
+    cls_models = classification_model_specs()[: args.max_models] if args.max_models is not None else classification_model_specs()
+    cfg = InferenceBundleConfig(
+        baseline_regression_model=exp.inference.baseline_regression_model,
+        baseline_classification_model=exp.inference.baseline_classification_model,
+        bootstrap_iterations=exp.inference.bootstrap_iterations,
+        bayesian_bootstrap_samples=exp.inference.bayesian_bootstrap_samples,
+        paired_alpha=exp.inference.paired_alpha,
+        fdr_alpha=exp.inference.fdr_alpha,
+        random_seed=args.seed,
+    )
+    y_reg = prepare_targets(questionnaire, "regression")
+    y_cls = prepare_targets(questionnaire, "classification")
+    inf_reg = run_regression_inference(
+        x_user,
+        y_reg,
+        feature_sets,
+        reg_models,
+        reg_df,
+        cfg,
+        exp.tuning.regression_scoring,
+        exp.cv.regression_inner_max_splits,
+        exp.cv.inner_shuffle,
+        exp.cv.inner_random_seed,
+    )
+    inf_cls = run_classification_inference(
+        x_user,
+        y_cls,
+        feature_sets,
+        cls_models,
+        cls_df,
+        cfg,
+        exp.tuning.classification_scoring,
+        exp.cv.classification_inner_max_splits,
+        exp.cv.inner_shuffle,
+        exp.cv.inner_random_seed,
+    )
+    return inf_reg, inf_cls
 
 
 def _run_final_shap(
@@ -279,12 +413,24 @@ def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
         cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
         logger.info("permutation tables written to %s", tables_dir)
 
+        comparison_df = _build_global_vs_target_specific_comparison(reg_df)
+        comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
+        logger.info("global-vs-local comparison table written to %s", tables_dir / "regression_best_global_vs_target_specific.csv")
+
+        inf_reg_df, inf_cls_df = _run_inference_bundle(x_user, bundle.questionnaire, reg_df, cls_df, args)
+        inf_reg_df.to_csv(tables_dir / "inference_regression.csv", index=False)
+        inf_cls_df.to_csv(tables_dir / "inference_classification.csv", index=False)
+        logger.info("inference tables written to %s", tables_dir)
+
         _build_publication_figures(
             corr_df=corr_df,
             reg_df=reg_df,
             cls_df=cls_df,
             reg_perm=reg_perm,
             cls_perm=cls_perm,
+            comparison_df=comparison_df,
+            inf_reg_df=inf_reg_df,
+            inf_cls_df=inf_cls_df,
             figures_dir=figures_dir,
         )
         logger.info("publication overview figures written to %s", figures_dir)
@@ -300,8 +446,8 @@ def cmd_run_paper_pipeline(args: argparse.Namespace, logger: object) -> int:
         logger.error("run-paper-pipeline FAILED: %s", exc)
         return 1
     logger.info(
-        "paper protocol pipeline completed | tables=%s figures=%s | includes permutation p-values | "
-        "inference bundle not included in unified protocol lane | "
+        "paper protocol pipeline completed | tables=%s figures=%s | includes permutation p-values and "
+        "inference CI/statistical figures | "
         "shap.max_targets_default=%s",
         tables_dir,
         figures_dir,
