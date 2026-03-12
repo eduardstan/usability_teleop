@@ -3,8 +3,10 @@
 This repository is the clean, reproducible implementation track for validating claims in `draft.tex`.
 
 ## Current Status
-- Phase 0 foundation initialized.
-- Next: Phase 1 data contracts and ingestion.
+- Unified protocol lanes implemented:
+  - Estimation lane (`run-estimation`): nested LOSO only.
+  - Final-model lane (`fit-final-models` + `run-final-explainability`).
+- Unified orchestrator available: `run-paper-pipeline`.
 
 ## Repository Layout
 - `src/usability_teleop/`: package code (data, features, modeling, stats, viz, cli)
@@ -43,6 +45,10 @@ usability-teleop run-inference --data-dir data/raw --tables-dir outputs/tables -
 usability-teleop run-shap --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-feature-sets 2 --max-models 2 --max-targets 3
 usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures
 usability-teleop run-rq2-end2end --data-dir data/raw --max-models 10 --workers 4
+usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --max-models 2 --max-feature-sets 2 --class-balance none
+usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables
+usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-targets 5
+usability-teleop run-paper-pipeline --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-models 2 --max-feature-sets 2
 pytest
 ruff check .
 ruff format --check .
@@ -56,6 +62,7 @@ Notes:
 - `configs/models.yaml` defines model families and hyperparameter grids.
 - `configs/experiment.yaml` defines protocol settings (tuning metric, inner-CV behavior, permutation alpha/defaults, SHAP defaults).
 - Every run command accepts `--experiment-config path/to/experiment.yaml` to override protocol defaults.
+- `run-final-explainability` explains only final refit models; no OOF explainability mode is used.
 
 ## Working Rules
 - All production implementation goes under `src/`.

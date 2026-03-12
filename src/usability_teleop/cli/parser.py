@@ -6,6 +6,12 @@ import argparse
 
 from usability_teleop.cli.commands_basic import cmd_doctor, cmd_run_correlation, cmd_validate_data
 from usability_teleop.cli.commands_inference import cmd_run_inference
+from usability_teleop.cli.commands_protocol import (
+    cmd_fit_final_models,
+    cmd_run_estimation,
+    cmd_run_final_explainability,
+    cmd_run_paper_pipeline,
+)
 from usability_teleop.cli.commands_study import cmd_run_ablation_study
 from usability_teleop.cli.commands_rq2 import cmd_run_regression, cmd_run_rq2_end2end
 from usability_teleop.cli.commands_rq3 import (
@@ -126,4 +132,47 @@ def build_parser() -> argparse.ArgumentParser:
     study.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="smote")
     study.add_argument("--workers", type=int, default=1)
     study.set_defaults(func=cmd_run_ablation_study)
+
+    est = sub.add_parser("run-estimation", help="Run unified estimation lane (nested LOSO)")
+    est.add_argument("--data-dir", default="data/raw")
+    est.add_argument("--tables-dir", default="outputs/tables")
+    est.add_argument("--seed", type=int, default=42)
+    est.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    est.add_argument("--max-models", type=int, default=None)
+    est.add_argument("--max-feature-sets", type=int, default=None)
+    est.add_argument("--top-k-per-axis", type=int, default=None)
+    est.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
+    est.set_defaults(func=cmd_run_estimation)
+
+    ff = sub.add_parser("fit-final-models", help="Fit final models from estimation winners")
+    ff.add_argument("--data-dir", default="data/raw")
+    ff.add_argument("--tables-dir", default="outputs/tables")
+    ff.add_argument("--seed", type=int, default=42)
+    ff.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    ff.add_argument("--top-k-per-axis", type=int, default=None)
+    ff.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
+    ff.set_defaults(func=cmd_fit_final_models)
+
+    fe = sub.add_parser("run-final-explainability", help="Run SHAP from final fitted models only")
+    fe.add_argument("--data-dir", default="data/raw")
+    fe.add_argument("--tables-dir", default="outputs/tables")
+    fe.add_argument("--figures-dir", default="outputs/figures")
+    fe.add_argument("--seed", type=int, default=42)
+    fe.add_argument("--max-targets", type=int, default=5)
+    fe.set_defaults(func=cmd_run_final_explainability)
+
+    pipe = sub.add_parser("run-paper-pipeline", help="Run unified paper pipeline (RQ1 + estimation + final explainability)")
+    pipe.add_argument("--data-dir", default="data/raw")
+    pipe.add_argument("--tables-dir", default="outputs/tables")
+    pipe.add_argument("--figures-dir", default="outputs/figures")
+    pipe.add_argument("--seed", type=int, default=42)
+    pipe.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    pipe.add_argument("--max-models", type=int, default=None)
+    pipe.add_argument("--max-feature-sets", type=int, default=None)
+    pipe.add_argument("--top-k-per-axis", type=int, default=None)
+    pipe.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
+    pipe.add_argument("--max-targets", type=int, default=5)
+    pipe.add_argument("--alpha", type=float, default=0.05)
+    pipe.add_argument("--effect-threshold", type=float, default=0.30)
+    pipe.set_defaults(func=cmd_run_paper_pipeline)
     return parser

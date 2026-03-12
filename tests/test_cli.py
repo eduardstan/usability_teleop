@@ -19,3 +19,7 @@ def test_cli_parser_accepts_phase34_commands() -> None:
     assert parser.parse_args(["run-rq2-end2end"]).command == "run-rq2-end2end"
     assert parser.parse_args(["run-rq23-end2end"]).command == "run-rq23-end2end"
     assert parser.parse_args(["run-ablation-study"]).command == "run-ablation-study"
+    assert parser.parse_args(["run-estimation"]).command == "run-estimation"
+    assert parser.parse_args(["fit-final-models"]).command == "fit-final-models"
+    assert parser.parse_args(["run-final-explainability"]).command == "run-final-explainability"
+    assert parser.parse_args(["run-paper-pipeline"]).command == "run-paper-pipeline"
