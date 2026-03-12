@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import pandas as pd
+
 from usability_teleop.cli.commands_inference import compute_inference_tables
 from usability_teleop.cli.common import (
     DataValidationError,
@@ -28,8 +30,16 @@ from usability_teleop.stats.shap_analysis import run_regression_shap
 from usability_teleop.utils.timing import ProgressTracker, format_seconds
 from usability_teleop.viz.figures import (
     plot_classification_overview,
+    plot_correlation_heatmap,
+    plot_global_vs_target_specific_r2,
     plot_permutation_summary,
     plot_regression_overview,
+)
+from usability_teleop.viz.inference_figures import (
+    plot_inference_bayesian,
+    plot_inference_classification_ci,
+    plot_inference_pvalues,
+    plot_inference_regression_ci,
 )
 
 
@@ -172,6 +182,17 @@ def cmd_run_rq23_end2end(args: argparse.Namespace, logger: object) -> int:
     plot_regression_overview(global_df, figure_dir / "figure_regression_overview.png")
     plot_classification_overview(cls_df, figure_dir / "figure_classification_overview.png")
     plot_permutation_summary(reg_perm, cls_perm, figure_dir / "figure_permutation_pvalues.png")
+    plot_global_vs_target_specific_r2(comparison, figure_dir / "figure_regression_global_vs_target_specific.png")
+    plot_inference_regression_ci(reg_inf, figure_dir / "figure_inference_regression_ci.png")
+    plot_inference_classification_ci(cls_inf, figure_dir / "figure_inference_classification_ci.png")
+    plot_inference_pvalues(reg_inf, cls_inf, figure_dir / "figure_inference_pvalues.png")
+    plot_inference_bayesian(reg_inf, cls_inf, figure_dir / "figure_inference_bayesian.png")
+    correlation_path = table_dir / "correlation_results.csv"
+    if correlation_path.exists():
+        plot_correlation_heatmap(
+            pd.read_csv(correlation_path),
+            figure_dir / "figure_correlation_heatmap.png",
+        )
     elapsed, eta = stage.step()
     logger.info("stage 7/7 figures done | elapsed=%s eta=%s", format_seconds(elapsed), format_seconds(eta))
     logger.info("RQ2+RQ3 end-to-end completed | tables=%s figures=%s", table_dir, figure_dir)

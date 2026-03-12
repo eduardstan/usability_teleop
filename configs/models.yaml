@@ -13,14 +13,14 @@ regression:
   - name: Lasso
     estimator: sklearn.linear_model.Lasso
     fixed_params:
-      max_iter: 10000
+      max_iter: 50000
     param_grid:
       alpha: [0.001, 0.01, 0.1]
 
   - name: ElasticNet
     estimator: sklearn.linear_model.ElasticNet
     fixed_params:
-      max_iter: 10000
+      max_iter: 50000
     param_grid:
       alpha: [0.01, 0.1, 1.0]
       l1_ratio: [0.1, 0.5, 0.9]
@@ -76,7 +76,7 @@ classification:
   - name: RidgeLikeClassifier
     estimator: sklearn.linear_model.LogisticRegression
     fixed_params:
-      max_iter: 5000
+      max_iter: 20000
     param_grid:
       C: [0.1, 1.0, 10.0]
       penalty: ["l2"]
@@ -85,7 +85,7 @@ classification:
   - name: LassoLikeClassifier
     estimator: sklearn.linear_model.LogisticRegression
     fixed_params:
-      max_iter: 5000
+      max_iter: 20000
     param_grid:
       C: [0.1, 1.0, 10.0]
       penalty: ["l1"]
@@ -94,7 +94,7 @@ classification:
   - name: ElasticNetClassifier
     estimator: sklearn.linear_model.LogisticRegression
     fixed_params:
-      max_iter: 5000
+      max_iter: 20000
     param_grid:
       C: [0.1, 1.0, 10.0]
       penalty: ["elasticnet"]
@@ -153,4 +153,4 @@ classification:
     estimator: sklearn.discriminant_analysis.LinearDiscriminantAnalysis
     fixed_params: {}
     param_grid:
-      solver: ["svd", "lsqr"]
+      solver: ["svd"]
