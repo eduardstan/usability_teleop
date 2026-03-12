@@ -443,6 +443,15 @@ def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
         logger.error("run-stat-validation FAILED: %s", exc)
         return 1
 
+    y_corr = prepare_targets(bundle.questionnaire, stage="correlation")
+    corr_df = run_correlation_analysis(
+        x_user,
+        y_corr,
+        CorrelationConfig(alpha=0.05, effect_threshold=0.30),
+    )
+    corr_df.to_csv(tables_dir / "correlation_results.csv", index=False)
+    logger.info("correlation table written to %s", tables_dir / "correlation_results.csv")
+
     reg_df = pd.read_csv(reg_path)
     cls_df = pd.read_csv(cls_path)
     try:

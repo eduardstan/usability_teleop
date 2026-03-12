@@ -58,7 +58,7 @@ Notes:
 - `configs/experiment.yaml` defines protocol settings (tuning metric, inner-CV behavior, permutation alpha/defaults, SHAP defaults).
 - Every run command accepts `--experiment-config path/to/experiment.yaml` to override protocol defaults.
 - `run-final-explainability` explains only final refit models; no OOF explainability mode is used.
-- `run-stat-validation` computes permutation and inference tables (p-values, CI, global-vs-local summary) from estimation outputs.
+- `run-stat-validation` computes correlation, permutation, and inference tables (p-values, CI, global-vs-local summary) from estimation outputs.
 - `build-figures` only reads `outputs/tables/*.csv` and generates figures; it logs skipped figures when required inputs are missing and writes a report to `outputs/runs/build_figures_report.json`.
 - `build-paper-artifacts` is a convenience end-to-end command (data -> tables -> figures -> final models -> SHAP).
 
