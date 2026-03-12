@@ -17,7 +17,7 @@ from usability_teleop.modeling.cv import classification_inner_cv, fit_with_tunin
 from usability_teleop.modeling.registry import ModelSpec, build_estimator
 from usability_teleop.protocol.selection import SelectionConfig, pack_fold_feature_counts, select_train_test_features
 
-ClassBalanceMode = Literal["none", "oversample", "undersample", "smote"]
+ClassBalanceMode = Literal["none", "smote"]
 
 
 def run_classification_estimation(
@@ -128,6 +128,8 @@ def _rebalance_binary_train(
 ) -> tuple[np.ndarray, np.ndarray]:
     if method == "none":
         return x_train, y_train
+    if method != "smote":
+        raise ValueError(f"Unsupported class balance mode: {method}")
     counts = Counter(y_train.tolist())
     if len(counts) < 2:
         return x_train, y_train
@@ -140,16 +142,6 @@ def _rebalance_binary_train(
     idx0 = np.where(y_train == int(keys[0]))[0]
     idx1 = np.where(y_train == int(keys[1]))[0]
     minor_idx, major_idx = (idx0, idx1) if c0 < c1 else (idx1, idx0)
-    if method == "oversample":
-        extra = rng.choice(minor_idx, size=len(major_idx) - len(minor_idx), replace=True)
-        keep = np.concatenate([major_idx, minor_idx, extra])
-        rng.shuffle(keep)
-        return x_train[keep], y_train[keep]
-    if method == "undersample":
-        major_keep = rng.choice(major_idx, size=len(minor_idx), replace=False)
-        keep = np.concatenate([minor_idx, major_keep])
-        rng.shuffle(keep)
-        return x_train[keep], y_train[keep]
     needed = len(major_idx) - len(minor_idx)
     if needed <= 0:
         return x_train, y_train

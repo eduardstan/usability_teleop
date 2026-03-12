@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     est.add_argument("--max-models", type=int, default=None)
     est.add_argument("--max-feature-sets", type=int, default=None)
     est.add_argument("--top-k-per-axis", type=int, default=None)
-    est.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
+    est.add_argument("--class-balance", choices=["none", "smote"], default="none")
     est.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_estimation"))
 
     ff = sub.add_parser("fit-final-models", help="Fit final models from estimation winners")
@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     ff.add_argument("--seed", type=int, default=42)
     ff.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
     ff.add_argument("--top-k-per-axis", type=int, default=None)
-    ff.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
+    ff.add_argument("--class-balance", choices=["none", "smote"], default="none")
     ff.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_fit_final_models"))
 
     fe = sub.add_parser("run-final-explainability", help="Run SHAP from final fitted models only")
@@ -83,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     art.add_argument("--max-models", type=int, default=None)
     art.add_argument("--max-feature-sets", type=int, default=None)
     art.add_argument("--top-k-per-axis", type=int, default=None)
-    art.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="none")
+    art.add_argument("--class-balance", choices=["none", "smote"], default="none")
     art.add_argument("--max-targets", type=int, default=5)
     art.add_argument("--alpha", type=float, default=0.05)
     art.add_argument("--effect-threshold", type=float, default=0.30)
@@ -99,4 +99,27 @@ def build_parser() -> argparse.ArgumentParser:
     figs.add_argument("--figures-dir", default="outputs/figures")
     figs.add_argument("--runs-dir", default="outputs/runs")
     figs.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_figures"))
+
+    ab = sub.add_parser(
+        "run-ablation",
+        help="Run ablation study tables (feature selection + class balance factors)",
+    )
+    ab.add_argument("--data-dir", default="data/raw")
+    ab.add_argument("--tables-dir", default="outputs/tables")
+    ab.add_argument("--seed", type=int, default=42)
+    ab.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    ab.add_argument("--max-models", type=int, default=2)
+    ab.add_argument("--max-feature-sets", type=int, default=4)
+    ab.add_argument("--top-k-per-axis", type=int, default=3)
+    ab.add_argument("--class-balance", choices=["none", "smote"], default="smote")
+    ab.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_ablation"))
+
+    abf = sub.add_parser(
+        "build-ablation-figures",
+        help="Build ablation publication figures from existing ablation CSV tables",
+    )
+    abf.add_argument("--tables-dir", default="outputs/tables")
+    abf.add_argument("--figures-dir", default="outputs/figures")
+    abf.add_argument("--runs-dir", default="outputs/runs")
+    abf.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_ablation_figures"))
     return parser

@@ -685,6 +685,10 @@ def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
     else:
         _mark_skip("figure_protocol_dashboard.png", "no dashboard inputs available")
 
+    ab_built, ab_skipped = _build_ablation_figures_from_tables(tables_dir, figures_dir, logger)
+    built.extend(ab_built)
+    skipped.extend(ab_skipped)
+
     report_path = runs_dir / "build_figures_report.json"
     report = {
         "tables_dir": str(tables_dir),
@@ -695,6 +699,108 @@ def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     logger.info(
         "build-figures completed | built=%s skipped=%s report=%s",
+        len(built),
+        len(skipped),
+        report_path,
+    )
+    return 0
+
+
+def _build_ablation_figures_from_tables(
+    tables_dir: Path,
+    figures_dir: Path,
+    logger: object,
+) -> tuple[list[str], list[str]]:
+    from usability_teleop.viz.study_figures import (
+        plot_study_delta_heatmap,
+        plot_study_stage_summary,
+        plot_study_target_distributions,
+    )
+
+    summary_df = _load_csv_or_warn(tables_dir / "ablation_summary.csv", logger)
+    breakdown_df = _load_csv_or_warn(tables_dir / "ablation_breakdown.csv", logger)
+    target_dist_df = _load_csv_or_warn(tables_dir / "ablation_target_distributions.csv", logger)
+
+    built: list[str] = []
+    skipped: list[str] = []
+    figure_specs: list[tuple[str, Callable[..., None], tuple[Any, ...]]] = [
+        ("figure_ablation_stage_summary.png", plot_study_stage_summary, (summary_df,)),
+        ("figure_ablation_delta_heatmap.png", plot_study_delta_heatmap, (breakdown_df,)),
+        ("figure_ablation_target_distributions.png", plot_study_target_distributions, (target_dist_df,)),
+    ]
+    for fig_name, plot_fn, plot_args in figure_specs:
+        out = figures_dir / fig_name
+        if _run_plot(plot_fn, out, logger, *plot_args):
+            built.append(fig_name)
+        else:
+            skipped.append(fig_name)
+    return built, skipped
+
+
+def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
+    from usability_teleop.analysis import build_target_distribution_table, run_ablation_study
+
+    source_dir = Path(args.data_dir).resolve()
+    tables_dir = Path(args.tables_dir).resolve()
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        bundle, x_user = prepare_aligned_inputs(source_dir)
+    except DataValidationError as exc:
+        logger.error("run-ablation FAILED: %s", exc)
+        return 1
+
+    exp = resolve_experiment_config(args.experiment_config)
+    y_reg = prepare_targets(bundle.questionnaire, "regression")
+    y_cls = prepare_targets(bundle.questionnaire, "classification")
+    try:
+        outputs = run_ablation_study(
+            x_base=x_user,
+            y_reg=y_reg,
+            y_cls=y_cls,
+            max_models=args.max_models,
+            max_feature_sets=args.max_feature_sets,
+            top_k_per_axis=args.top_k_per_axis,
+            class_balance=args.class_balance,
+            seed=args.seed,
+            workers=1,
+            tuning_regression_scoring=exp.tuning.regression_scoring,
+            tuning_classification_scoring=exp.tuning.classification_scoring,
+            inner_regression_splits=exp.cv.regression_inner_max_splits,
+            inner_classification_splits=exp.cv.classification_inner_max_splits,
+            inner_shuffle=exp.cv.inner_shuffle,
+            inner_seed=exp.cv.inner_random_seed,
+            logger=logger,
+        )
+    except (ValueError, KeyError) as exc:
+        logger.error("run-ablation FAILED: %s", exc)
+        return 1
+
+    target_dist_df = build_target_distribution_table(y_reg, y_cls)
+    outputs.summary.to_csv(tables_dir / "ablation_summary.csv", index=False)
+    outputs.breakdown.to_csv(tables_dir / "ablation_breakdown.csv", index=False)
+    outputs.feature_filter_summary.to_csv(tables_dir / "ablation_feature_filter_summary.csv", index=False)
+    target_dist_df.to_csv(tables_dir / "ablation_target_distributions.csv", index=False)
+    logger.info("ablation tables written to %s", tables_dir)
+    return 0
+
+
+def cmd_build_ablation_figures(args: argparse.Namespace, logger: object) -> int:
+    tables_dir = Path(args.tables_dir).resolve()
+    figures_dir = Path(args.figures_dir).resolve()
+    runs_dir = Path(args.runs_dir).resolve()
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    built, skipped = _build_ablation_figures_from_tables(tables_dir, figures_dir, logger)
+    report_path = runs_dir / "build_ablation_figures_report.json"
+    report = {
+        "tables_dir": str(tables_dir),
+        "figures_dir": str(figures_dir),
+        "built_figures": built,
+        "skipped_figures": skipped,
+    }
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    logger.info(
+        "build-ablation-figures completed | built=%s skipped=%s report=%s",
         len(built),
         len(skipped),
         report_path,

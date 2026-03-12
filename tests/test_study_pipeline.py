@@ -59,7 +59,7 @@ def test_classification_balance_mode_smoke() -> None:
         fs,
         models,
         max_feature_sets=1,
-        class_balance="oversample",
+        class_balance="smote",
     )
     assert not out.empty
     assert (out["status"] == "ok").all()
