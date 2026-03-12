@@ -56,6 +56,8 @@ Notes:
 - `--max-feature-sets N` limits how many predefined axis-combination configurations are executed.
 - This cap is distinct from fold-safe feature selection (`top_k_per_axis`) used inside protocol selection logic.
 - `configs/models.yaml` defines model families and hyperparameter grids.
+- `configs/models_fast.yaml` and `configs/models_full.yaml` provide explicit fast/full hyperparameter profiles.
+- `--models-config path/to/models_*.yaml` selects the model profile for estimation/stat-validation/final-fit/ablation commands.
 - `configs/experiment.yaml` defines protocol settings (tuning metric, inner-CV behavior, permutation alpha/defaults, SHAP defaults).
 - Every run command accepts `--experiment-config path/to/experiment.yaml` to override protocol defaults.
 - `--class-balance` is constrained to `none|smote` and only applies to classification paths.
@@ -76,6 +78,7 @@ conda activate usability_teleop_clean
 usability-teleop run-estimation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
   --max-models 2 \
   --max-feature-sets 2 \
   --class-balance smote
@@ -84,6 +87,7 @@ usability-teleop run-estimation \
 usability-teleop run-stat-validation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
   --max-models 2 \
   --max-feature-sets 2 \
   --n-permutations 100 \
@@ -93,6 +97,7 @@ usability-teleop run-stat-validation \
 usability-teleop fit-final-models \
   --data-dir data/raw \
   --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
   --class-balance smote
 
 # 4) SHAP explainability on final models
@@ -113,6 +118,7 @@ usability-teleop build-figures \
 usability-teleop run-ablation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
   --max-models 2 \
   --max-feature-sets 4 \
   --top-k-per-axis 3 \

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -34,11 +35,12 @@ def fit_final_models(
     inner_seed: int,
     top_k_per_axis: int | None,
     class_balance: ClassBalanceMode,
+    models_config: Path | None = None,
     logger: object | None = None,
 ) -> pd.DataFrame:
     fs_specs = {fs.name: fs for fs in generate_ee_quat_feature_sets(include_average=True)}
-    reg_specs = {spec.name: spec for spec in regression_model_specs()}
-    cls_specs = {spec.name: spec for spec in classification_model_specs()}
+    reg_specs = {spec.name: spec for spec in regression_model_specs(config_path=models_config)}
+    cls_specs = {spec.name: spec for spec in classification_model_specs(config_path=models_config)}
     selection_cfg = SelectionConfig(top_k_per_axis=top_k_per_axis)
     rows: list[dict[str, object]] = []
 

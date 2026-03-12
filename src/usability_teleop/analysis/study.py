@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -55,11 +56,12 @@ def run_ablation_study(
     inner_classification_splits: int,
     inner_shuffle: bool,
     inner_seed: int,
+    models_config: Path | None,
     logger: object | None = None,
 ) -> StudyOutputs:
     feature_sets = generate_ee_quat_feature_sets(include_average=True)
-    reg_models = regression_model_specs()[:max_models]
-    cls_models = classification_model_specs()[:max_models]
+    reg_models = regression_model_specs(config_path=models_config)[:max_models]
+    cls_models = classification_model_specs(config_path=models_config)[:max_models]
     x_filtered, feature_filter_summary = filter_axis_top_variance(x_base, top_k_per_axis=top_k_per_axis)
 
     stages = [

@@ -32,6 +32,10 @@ from usability_teleop.stats.inference import (
 )
 
 
+def _resolve_models_config(path: str | None) -> Path | None:
+    return Path(path).resolve() if path else None
+
+
 def _run_estimation(
     x_user: pd.DataFrame,
     questionnaire: pd.DataFrame,
@@ -39,6 +43,7 @@ def _run_estimation(
     logger: object,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     exp = resolve_experiment_config(args.experiment_config)
+    models_config = _resolve_models_config(getattr(args, "models_config", None))
     outputs = run_estimation_lane(
         x_user=x_user,
         y_reg=prepare_targets(questionnaire, "regression"),
@@ -54,6 +59,7 @@ def _run_estimation(
         inner_seed=exp.cv.inner_random_seed,
         top_k_per_axis=args.top_k_per_axis,
         class_balance=args.class_balance,
+        models_config=models_config,
         logger=logger,
     )
     return outputs.regression, outputs.classification, outputs.best_configs
@@ -67,6 +73,7 @@ def _fit_final_models(
     logger: object,
 ) -> pd.DataFrame:
     exp = resolve_experiment_config(args.experiment_config)
+    models_config = _resolve_models_config(getattr(args, "models_config", None))
     validate_estimation_best_configs(estimation_best)
     return fit_final_models(
         x_user=x_user,
@@ -82,6 +89,7 @@ def _fit_final_models(
         inner_seed=exp.cv.inner_random_seed,
         top_k_per_axis=args.top_k_per_axis,
         class_balance=args.class_balance,
+        models_config=models_config,
         logger=logger,
     )
 
@@ -94,11 +102,14 @@ def _run_permutation(
     args: argparse.Namespace,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     exp = resolve_experiment_config(args.experiment_config)
+    models_config = _resolve_models_config(getattr(args, "models_config", None))
     feature_sets = generate_ee_quat_feature_sets(include_average=exp.feature_sets.include_average)
     if args.max_feature_sets is not None:
         feature_sets = feature_sets[: args.max_feature_sets]
-    reg_models = regression_model_specs()[: args.max_models] if args.max_models is not None else regression_model_specs()
-    cls_models = classification_model_specs()[: args.max_models] if args.max_models is not None else classification_model_specs()
+    reg_pool = regression_model_specs(config_path=models_config)
+    cls_pool = classification_model_specs(config_path=models_config)
+    reg_models = reg_pool[: args.max_models] if args.max_models is not None else reg_pool
+    cls_models = cls_pool[: args.max_models] if args.max_models is not None else cls_pool
     cfg = PermutationConfig(
         n_permutations=args.n_permutations or exp.permutation.n_permutations_default,
         alpha=exp.permutation.alpha,
@@ -271,11 +282,14 @@ def _run_inference_bundle(
     args: argparse.Namespace,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     exp = resolve_experiment_config(args.experiment_config)
+    models_config = _resolve_models_config(getattr(args, "models_config", None))
     feature_sets = generate_ee_quat_feature_sets(include_average=exp.feature_sets.include_average)
     if args.max_feature_sets is not None:
         feature_sets = feature_sets[: args.max_feature_sets]
-    reg_models = regression_model_specs()[: args.max_models] if args.max_models is not None else regression_model_specs()
-    cls_models = classification_model_specs()[: args.max_models] if args.max_models is not None else classification_model_specs()
+    reg_pool = regression_model_specs(config_path=models_config)
+    cls_pool = classification_model_specs(config_path=models_config)
+    reg_models = reg_pool[: args.max_models] if args.max_models is not None else reg_pool
+    cls_models = cls_pool[: args.max_models] if args.max_models is not None else cls_pool
     cfg = InferenceBundleConfig(
         baseline_regression_model=exp.inference.baseline_regression_model,
         baseline_classification_model=exp.inference.baseline_classification_model,
@@ -337,6 +351,7 @@ def _run_final_shap(
     from usability_teleop.protocol.explainability import run_final_explainability
 
     exp = resolve_experiment_config(args.experiment_config)
+    models_config = _resolve_models_config(getattr(args, "models_config", None))
     validate_final_models_table(final_models)
     return run_final_explainability(
         x_user=x_user,
@@ -750,6 +765,7 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
         return 1
 
     exp = resolve_experiment_config(args.experiment_config)
+    models_config = _resolve_models_config(getattr(args, "models_config", None))
     y_reg = prepare_targets(bundle.questionnaire, "regression")
     y_cls = prepare_targets(bundle.questionnaire, "classification")
     try:
@@ -761,6 +777,7 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
             max_feature_sets=args.max_feature_sets,
             top_k_per_axis=args.top_k_per_axis,
             class_balance=args.class_balance,
+            models_config=models_config,
             seed=args.seed,
             workers=1,
             tuning_regression_scoring=exp.tuning.regression_scoring,

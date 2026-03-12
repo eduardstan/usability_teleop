@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 
@@ -35,13 +36,16 @@ def run_estimation_lane(
     inner_seed: int,
     top_k_per_axis: int | None,
     class_balance: ClassBalanceMode,
+    models_config: Path | None = None,
     logger: object | None = None,
 ) -> EstimationOutputs:
     feature_sets = generate_ee_quat_feature_sets(include_average=True)
     if max_feature_sets is not None:
         feature_sets = feature_sets[:max_feature_sets]
-    reg_models = regression_model_specs()[:max_models] if max_models is not None else regression_model_specs()
-    cls_models = classification_model_specs()[:max_models] if max_models is not None else classification_model_specs()
+    reg_pool = regression_model_specs(config_path=models_config)
+    cls_pool = classification_model_specs(config_path=models_config)
+    reg_models = reg_pool[:max_models] if max_models is not None else reg_pool
+    cls_models = cls_pool[:max_models] if max_models is not None else cls_pool
     selection_cfg = SelectionConfig(top_k_per_axis=top_k_per_axis)
 
     reg_df = run_regression_estimation(
