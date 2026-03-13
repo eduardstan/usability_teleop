@@ -151,7 +151,8 @@ def _build_publication_figures(
     cls_df: pd.DataFrame,
     reg_perm: pd.DataFrame,
     cls_perm: pd.DataFrame,
-    comparison_df: pd.DataFrame,
+    reg_comparison_df: pd.DataFrame,
+    cls_comparison_df: pd.DataFrame,
     inf_reg_df: pd.DataFrame,
     inf_cls_df: pd.DataFrame,
     figures_dir: Path,
@@ -159,6 +160,7 @@ def _build_publication_figures(
     from usability_teleop.viz.figures import (
         plot_classification_overview,
         plot_correlation_heatmap,
+        plot_global_vs_target_specific_auc,
         plot_global_vs_target_specific_r2,
         plot_permutation_summary,
         plot_protocol_dashboard,
@@ -176,13 +178,17 @@ def _build_publication_figures(
     plot_regression_overview(reg_df, figures_dir / "figure_regression_overview.png")
     plot_classification_overview(cls_df, figures_dir / "figure_classification_overview.png")
     plot_permutation_summary(reg_perm, cls_perm, figures_dir / "figure_permutation_pvalues.png")
-    plot_global_vs_target_specific_r2(comparison_df, figures_dir / "figure_regression_global_vs_target_specific.png")
+    plot_global_vs_target_specific_r2(reg_comparison_df, figures_dir / "figure_regression_global_vs_target_specific.png")
+    plot_global_vs_target_specific_auc(
+        cls_comparison_df,
+        figures_dir / "figure_classification_global_vs_target_specific.png",
+    )
     plot_inference_regression_ci(inf_reg_df, figures_dir / "figure_inference_regression_ci.png")
     plot_inference_classification_ci(inf_cls_df, figures_dir / "figure_inference_classification_ci.png")
     plot_inference_pvalues(inf_reg_df, inf_cls_df, figures_dir / "figure_inference_pvalues.png")
     plot_inference_bayesian(inf_reg_df, inf_cls_df, figures_dir / "figure_inference_bayesian.png")
     plot_protocol_dashboard(
-        comparison_df,
+        reg_comparison_df,
         reg_perm,
         cls_perm,
         inf_reg_df,
@@ -274,6 +280,75 @@ def _build_global_vs_target_specific_comparison(reg_df: pd.DataFrame) -> pd.Data
     return pd.DataFrame(rows).sort_values("delta_r2", ascending=False).reset_index(drop=True)
 
 
+def _build_classification_global_vs_target_specific_comparison(cls_df: pd.DataFrame) -> pd.DataFrame:
+    if cls_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "target",
+                "auc_global",
+                "auc_specific",
+                "delta_auc",
+                "model_global",
+                "feature_set_global",
+                "model_specific",
+                "feature_set_specific",
+            ]
+        )
+
+    valid = cls_df[cls_df["status"] == "ok"].copy() if "status" in cls_df.columns else cls_df.copy()
+    if valid.empty:
+        return pd.DataFrame(
+            columns=[
+                "target",
+                "auc_global",
+                "auc_specific",
+                "delta_auc",
+                "model_global",
+                "feature_set_global",
+                "model_specific",
+                "feature_set_specific",
+            ]
+        )
+
+    grouped = (
+        valid.groupby(["model", "feature_set"], as_index=False)["auc"]
+        .mean()
+        .rename(columns={"auc": "auc_mean"})
+        .sort_values("auc_mean", ascending=False)
+    )
+    best_global = grouped.iloc[0]
+    g_model = str(best_global["model"])
+    g_feature_set = str(best_global["feature_set"])
+
+    rows: list[dict[str, object]] = []
+    for target in sorted(valid["target"].unique().tolist()):
+        target_df = valid[valid["target"] == target]
+        if target_df.empty:
+            continue
+        best_specific = target_df.sort_values("auc", ascending=False).iloc[0]
+        global_target = target_df[
+            (target_df["model"] == g_model)
+            & (target_df["feature_set"] == g_feature_set)
+        ]
+        if global_target.empty:
+            continue
+        auc_global = float(global_target.iloc[0]["auc"])
+        auc_specific = float(best_specific["auc"])
+        rows.append(
+            {
+                "target": target,
+                "auc_global": auc_global,
+                "auc_specific": auc_specific,
+                "delta_auc": float(auc_specific - auc_global),
+                "model_global": g_model,
+                "feature_set_global": g_feature_set,
+                "model_specific": str(best_specific["model"]),
+                "feature_set_specific": str(best_specific["feature_set"]),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("delta_auc", ascending=False).reset_index(drop=True)
+
+
 def _run_inference_bundle(
     x_user: pd.DataFrame,
     questionnaire: pd.DataFrame,
@@ -334,11 +409,12 @@ def _run_stat_validation_bundle(
     reg_df: pd.DataFrame,
     cls_df: pd.DataFrame,
     args: argparse.Namespace,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     reg_perm, cls_perm = _run_permutation(x_user, questionnaire, reg_df, cls_df, args)
-    comparison_df = _build_global_vs_target_specific_comparison(reg_df)
+    reg_comparison_df = _build_global_vs_target_specific_comparison(reg_df)
+    cls_comparison_df = _build_classification_global_vs_target_specific_comparison(cls_df)
     inf_reg_df, inf_cls_df = _run_inference_bundle(x_user, questionnaire, reg_df, cls_df, args)
-    return reg_perm, cls_perm, comparison_df, inf_reg_df, inf_cls_df
+    return reg_perm, cls_perm, reg_comparison_df, cls_comparison_df, inf_reg_df, inf_cls_df
 
 
 def _run_final_shap(
@@ -470,7 +546,7 @@ def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
     reg_df = pd.read_csv(reg_path)
     cls_df = pd.read_csv(cls_path)
     try:
-        reg_perm, cls_perm, comparison_df, inf_reg_df, inf_cls_df = _run_stat_validation_bundle(
+        reg_perm, cls_perm, reg_comparison_df, cls_comparison_df, inf_reg_df, inf_cls_df = _run_stat_validation_bundle(
             x_user,
             bundle.questionnaire,
             reg_df,
@@ -483,7 +559,8 @@ def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
 
     reg_perm.to_csv(tables_dir / "permutation_regression_results.csv", index=False)
     cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
-    comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
+    reg_comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
+    cls_comparison_df.to_csv(tables_dir / "classification_best_global_vs_target_specific.csv", index=False)
     inf_reg_df.to_csv(tables_dir / "inference_regression.csv", index=False)
     inf_cls_df.to_csv(tables_dir / "inference_classification.csv", index=False)
     logger.info("stat-validation tables written to %s", tables_dir)
@@ -518,7 +595,7 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
         best_df.to_csv(tables_dir / "estimation_best_configs.csv", index=False)
         logger.info("estimation tables written to %s", tables_dir)
 
-        reg_perm, cls_perm, comparison_df, inf_reg_df, inf_cls_df = _run_stat_validation_bundle(
+        reg_perm, cls_perm, reg_comparison_df, cls_comparison_df, inf_reg_df, inf_cls_df = _run_stat_validation_bundle(
             x_user,
             bundle.questionnaire,
             reg_df,
@@ -527,7 +604,8 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
         )
         reg_perm.to_csv(tables_dir / "permutation_regression_results.csv", index=False)
         cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
-        comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
+        reg_comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
+        cls_comparison_df.to_csv(tables_dir / "classification_best_global_vs_target_specific.csv", index=False)
         inf_reg_df.to_csv(tables_dir / "inference_regression.csv", index=False)
         inf_cls_df.to_csv(tables_dir / "inference_classification.csv", index=False)
         logger.info("stat-validation tables written to %s", tables_dir)
@@ -538,7 +616,8 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
             cls_df=cls_df,
             reg_perm=reg_perm,
             cls_perm=cls_perm,
-            comparison_df=comparison_df,
+            reg_comparison_df=reg_comparison_df,
+            cls_comparison_df=cls_comparison_df,
             inf_reg_df=inf_reg_df,
             inf_cls_df=inf_cls_df,
             figures_dir=figures_dir,
@@ -570,6 +649,7 @@ def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
     from usability_teleop.viz.figures import (
         plot_classification_overview,
         plot_correlation_heatmap,
+        plot_global_vs_target_specific_auc,
         plot_global_vs_target_specific_r2,
         plot_permutation_summary,
         plot_protocol_dashboard,
@@ -594,6 +674,7 @@ def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
     reg_perm_df = _load_csv_or_warn(tables_dir / "permutation_regression_results.csv", logger)
     cls_perm_df = _load_csv_or_warn(tables_dir / "permutation_classification_results.csv", logger)
     comparison_df = _load_csv_or_warn(tables_dir / "regression_best_global_vs_target_specific.csv", logger)
+    cls_comparison_df = _load_csv_or_warn(tables_dir / "classification_best_global_vs_target_specific.csv", logger)
     inf_reg_df = _load_csv_or_warn(tables_dir / "inference_regression.csv", logger)
     inf_cls_df = _load_csv_or_warn(tables_dir / "inference_classification.csv", logger)
 
@@ -642,6 +723,16 @@ def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
         built.append("figure_regression_global_vs_target_specific.png")
     else:
         skipped.append("figure_regression_global_vs_target_specific.png")
+
+    if _run_plot(
+        plot_global_vs_target_specific_auc,
+        figures_dir / "figure_classification_global_vs_target_specific.png",
+        logger,
+        cls_comparison_df,
+    ):
+        built.append("figure_classification_global_vs_target_specific.png")
+    else:
+        skipped.append("figure_classification_global_vs_target_specific.png")
 
     if _run_plot(plot_inference_regression_ci, figures_dir / "figure_inference_regression_ci.png", logger, inf_reg_df):
         built.append("figure_inference_regression_ci.png")

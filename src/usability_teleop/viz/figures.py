@@ -154,6 +154,32 @@ def plot_global_vs_target_specific_r2(comparison_df: pd.DataFrame, output_path: 
     _save(fig, output_path)
 
 
+def plot_global_vs_target_specific_auc(comparison_df: pd.DataFrame, output_path: Path) -> None:
+    """Dumbbell chart: best global vs best target-specific AUC per target."""
+    apply_publication_theme()
+    if comparison_df.empty:
+        return
+    plot_df = comparison_df.sort_values("delta_auc", ascending=False).copy()
+    fig_height = max(4, 0.4 * len(plot_df) + 1.5)
+    fig, ax = plt.subplots(figsize=(10, fig_height))
+
+    ax.hlines(
+        y=plot_df["target"],
+        xmin=plot_df["auc_global"],
+        xmax=plot_df["auc_specific"],
+        color=NEUTRAL_MID,
+        linewidth=2,
+    )
+    ax.scatter(plot_df["auc_global"], plot_df["target"], color=PRIMARY_BLUE, s=45, label="Best global config")
+    ax.scatter(plot_df["auc_specific"], plot_df["target"], color=PRIMARY_RED, s=45, label="Best per-target config")
+    ax.axvline(0.5, color=NEUTRAL_DARK, linestyle="--", linewidth=1)
+    ax.set_title("Per-Target AUC: Best Global vs Best Target-Specific")
+    ax.set_xlabel("AUC")
+    ax.set_ylabel("Target")
+    ax.legend(loc="best")
+    _save(fig, output_path)
+
+
 def plot_protocol_dashboard(
     comparison_df: pd.DataFrame,
     perm_reg_df: pd.DataFrame,

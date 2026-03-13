@@ -3,6 +3,7 @@
 from usability_teleop.viz.figures import (
     plot_classification_overview,
     plot_correlation_heatmap,
+    plot_global_vs_target_specific_auc,
     plot_global_vs_target_specific_r2,
     plot_permutation_summary,
     plot_protocol_dashboard,
@@ -26,6 +27,7 @@ __all__ = [
     "plot_correlation_heatmap",
     "plot_regression_overview",
     "plot_global_vs_target_specific_r2",
+    "plot_global_vs_target_specific_auc",
     "plot_classification_overview",
     "plot_permutation_summary",
     "plot_protocol_dashboard",

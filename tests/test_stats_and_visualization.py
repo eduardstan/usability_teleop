@@ -19,6 +19,7 @@ from usability_teleop.stats.permutation_shared import params_from_result_row
 from usability_teleop.viz.figures import (
     plot_classification_overview,
     plot_correlation_heatmap,
+    plot_global_vs_target_specific_auc,
     plot_global_vs_target_specific_r2,
     plot_permutation_summary,
     plot_regression_overview,
@@ -116,6 +117,14 @@ def test_figure_builders_smoke(tmp_path: Path) -> None:
             "delta_r2": [0.2],
         }
     )
+    cls_comparison = pd.DataFrame(
+        {
+            "target": ["usability"],
+            "auc_global": [0.61],
+            "auc_specific": [0.74],
+            "delta_auc": [0.13],
+        }
+    )
     inf_reg = pd.DataFrame(
         {
             "target": ["usability"],
@@ -146,6 +155,7 @@ def test_figure_builders_smoke(tmp_path: Path) -> None:
     plot_classification_overview(cls, tmp_path / "cls.png")
     plot_permutation_summary(perm_reg, perm_cls, tmp_path / "perm.png")
     plot_global_vs_target_specific_r2(comparison, tmp_path / "reg_cmp.png")
+    plot_global_vs_target_specific_auc(cls_comparison, tmp_path / "cls_cmp.png")
     plot_inference_regression_ci(inf_reg, tmp_path / "inf_reg_ci.png")
     plot_inference_classification_ci(inf_cls, tmp_path / "inf_cls_ci.png")
     plot_inference_pvalues(inf_reg, inf_cls, tmp_path / "inf_pvalues.png")
@@ -156,6 +166,7 @@ def test_figure_builders_smoke(tmp_path: Path) -> None:
     assert (tmp_path / "cls.png").exists()
     assert (tmp_path / "perm.png").exists()
     assert (tmp_path / "reg_cmp.png").exists()
+    assert (tmp_path / "cls_cmp.png").exists()
     assert (tmp_path / "inf_reg_ci.png").exists()
     assert (tmp_path / "inf_cls_ci.png").exists()
     assert (tmp_path / "inf_pvalues.png").exists()
