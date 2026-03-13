@@ -9,7 +9,20 @@ This document is the reproducible runbook for generating all paper-ready artifac
 
 - Repository root is the working directory.
 - Raw data files are available in `data/raw/` according to `DATA_CONTRACTS.md`.
-- Conda environment exists and project is installed editable.
+- Python `3.12.x` is available.
+- Environment is created either with `venv` (recommended when conda is unavailable) or conda.
+
+`venv` setup:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
+python -m pip install -e .[dev]
+```
+
+Conda setup:
 
 ```bash
 conda env create -f environment.yml
@@ -25,6 +38,8 @@ usability-teleop doctor
 usability-teleop validate-data --source-dir data/raw --copy-to-raw
 pytest -q
 ```
+
+If using `venv`, ensure `source .venv/bin/activate` is done before running any `usability-teleop` command.
 
 ## 2) Configuration Profiles
 

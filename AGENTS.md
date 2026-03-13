@@ -11,7 +11,10 @@ Primary objective:
 ## Repository Identity
 - Project: `usability_teleop`
 - Python package: `usability_teleop`
-- Environment: conda env `usability_teleop_clean`
+- Python baseline: `3.12.x`
+- Environment options:
+  - `venv` at repo root (`.venv`) for conda-less machines
+  - conda env `usability_teleop_clean`
 - Source root: `src/usability_teleop/`
 
 ## Source-of-Truth Documents
@@ -96,7 +99,9 @@ Manifest payload includes command args, start/end UTC, elapsed seconds, git comm
 
 ## First-Session Checklist (for a new agent)
 1. Read `README.md` and `DATA_CONTRACTS.md`.
-2. Confirm environment: `conda activate usability_teleop_clean`.
+2. Activate environment:
+   - `source .venv/bin/activate` (if using `venv`), or
+   - `conda activate usability_teleop_clean` (if using conda).
 3. Run `usability-teleop doctor`.
 4. Run a fast smoke path using `configs/models_fast.yaml`.
 5. Inspect `outputs/tables`, `outputs/figures`, `outputs/runs` for expected artifacts.

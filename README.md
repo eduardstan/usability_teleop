@@ -43,6 +43,20 @@ This repository is the experiment source of truth:
 
 ## 2) Environment Setup
 
+Python baseline: `3.12.x`
+
+### Option A: `venv` (recommended when conda is unavailable)
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
+python -m pip install -e .[dev]
+```
+
+### Option B: conda
+
 ```bash
 conda env create -f environment.yml
 conda activate usability_teleop_clean
