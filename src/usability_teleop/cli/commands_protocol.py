@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -123,6 +124,7 @@ def _run_estimation(
         top_k_per_axis=args.top_k_per_axis,
         class_balance="none",
         models_config=models_config,
+        workers=max(1, int(getattr(args, "num_workers", 1))),
         logger=logger,
     )
     return outputs.regression, outputs.classification, outputs.best_configs
@@ -472,11 +474,22 @@ def _run_stat_validation_bundle(
     reg_df: pd.DataFrame,
     cls_df: pd.DataFrame,
     args: argparse.Namespace,
+    logger: object | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    reg_perm, cls_perm = _run_permutation(x_user, questionnaire, reg_df, cls_df, args)
+    workers = max(1, int(getattr(args, "num_workers", 1)))
+    if workers > 1:
+        if logger is not None:
+            logger.info("stat-validation bundle parallel lanes enabled (workers=%s)", workers)
+        with ThreadPoolExecutor(max_workers=min(workers, 2)) as executor:
+            perm_future = executor.submit(_run_permutation, x_user, questionnaire, reg_df, cls_df, args)
+            inf_future = executor.submit(_run_inference_bundle, x_user, questionnaire, reg_df, cls_df, args)
+            reg_perm, cls_perm = perm_future.result()
+            inf_reg_df, inf_cls_df = inf_future.result()
+    else:
+        reg_perm, cls_perm = _run_permutation(x_user, questionnaire, reg_df, cls_df, args)
+        inf_reg_df, inf_cls_df = _run_inference_bundle(x_user, questionnaire, reg_df, cls_df, args)
     reg_comparison_df = _build_global_vs_target_specific_comparison(reg_df)
     cls_comparison_df = _build_classification_global_vs_target_specific_comparison(cls_df)
-    inf_reg_df, inf_cls_df = _run_inference_bundle(x_user, questionnaire, reg_df, cls_df, args)
     return reg_perm, cls_perm, reg_comparison_df, cls_comparison_df, inf_reg_df, inf_cls_df
 
 
@@ -769,6 +782,7 @@ def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
             reg_df,
             cls_df,
             args,
+            logger,
         )
     except (ValueError, KeyError) as exc:
         logger.error("run-stat-validation FAILED: %s", exc)
@@ -873,6 +887,7 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
             reg_df,
             cls_df,
             args,
+            logger,
         )
         reg_perm.to_csv(tables_dir / "permutation_regression_results.csv", index=False)
         cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
@@ -1294,6 +1309,57 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
         outputs=outputs,
         error=error,
     )
+    return 0
+
+
+def cmd_build_ablation_artifacts(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
+    tables_dir = Path(args.tables_dir).resolve()
+    figures_dir = Path(args.figures_dir).resolve()
+    runs_dir = Path(args.runs_dir).resolve()
+    try:
+        rc_tables = cmd_run_ablation(args, logger)
+        if rc_tables != 0:
+            status = "error"
+            error = "run-ablation failed inside build-ablation-artifacts"
+            return 1
+        rc_figures = cmd_build_ablation_figures(args, logger)
+        if rc_figures != 0:
+            status = "error"
+            error = "build-ablation-figures failed inside build-ablation-artifacts"
+            return 1
+        outputs.extend(
+            [
+                str(tables_dir / "ablation_summary.csv"),
+                str(tables_dir / "ablation_breakdown.csv"),
+                str(tables_dir / "ablation_feature_filter_summary.csv"),
+                str(tables_dir / "ablation_target_distributions.csv"),
+                str(figures_dir / "figure_ablation_stage_summary.png"),
+                str(figures_dir / "figure_ablation_delta_heatmap.png"),
+                str(figures_dir / "figure_ablation_target_distributions.png"),
+                str(runs_dir / "build_ablation_figures_report.json"),
+            ]
+        )
+        logger.info("build-ablation-artifacts completed | tables=%s figures=%s", tables_dir, figures_dir)
+    except Exception as exc:
+        status = "error"
+        error = str(exc)
+        logger.error("build-ablation-artifacts FAILED: %s", exc)
+        return 1
+    finally:
+        _write_run_manifest(
+            command="build_ablation_artifacts",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=sorted(set(outputs)),
+            error=error,
+        )
     return 0
 
 

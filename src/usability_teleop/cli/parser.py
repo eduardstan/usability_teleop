@@ -37,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     est.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
     est.add_argument("--max-models", type=int, default=None)
     est.add_argument("--max-feature-sets", type=int, default=None)
+    est.add_argument("--num-workers", type=int, default=1, help="Parallel workers for estimation/stat bundles.")
     est.add_argument("--top-k-per-axis", type=int, default=None)
     est.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_estimation"))
 
@@ -72,6 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     stat.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
     stat.add_argument("--max-models", type=int, default=None)
     stat.add_argument("--max-feature-sets", type=int, default=None)
+    stat.add_argument("--num-workers", type=int, default=1, help="Parallel workers for estimation/stat bundles.")
     stat.add_argument("--n-permutations", type=int, default=None)
     stat.add_argument("--nested-permutation", action="store_true")
     stat.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_stat_validation"))
@@ -89,6 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     art.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
     art.add_argument("--max-models", type=int, default=None)
     art.add_argument("--max-feature-sets", type=int, default=None)
+    art.add_argument("--num-workers", type=int, default=1, help="Parallel workers for estimation/stat bundles.")
     art.add_argument("--top-k-per-axis", type=int, default=None)
     art.add_argument("--max-targets", type=int, default=5)
     art.add_argument("--alpha", type=float, default=0.05)
@@ -139,4 +142,30 @@ def build_parser() -> argparse.ArgumentParser:
     abf.add_argument("--figures-dir", default="outputs/figures")
     abf.add_argument("--runs-dir", default="outputs/runs")
     abf.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_ablation_figures"))
+
+    aba = sub.add_parser(
+        "build-ablation-artifacts",
+        help="Build ablation tables and figures in one command",
+    )
+    aba.add_argument("--data-dir", default="data/raw")
+    aba.add_argument("--tables-dir", default="outputs/tables")
+    aba.add_argument("--figures-dir", default="outputs/figures")
+    aba.add_argument("--runs-dir", default="outputs/runs")
+    aba.add_argument("--seed", type=int, default=42)
+    aba.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    aba.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
+    aba.add_argument("--max-models", type=int, default=None)
+    aba.add_argument("--max-feature-sets", type=int, default=None)
+    aba.add_argument(
+        "--num-workers",
+        type=int,
+        default=1,
+        help="Parallel workers for ablation stages (1 keeps deterministic sequential execution).",
+    )
+    aba.add_argument(
+        "--top-k-per-axis",
+        default="1,2,3,5",
+        help="Comma-separated top-k-per-axis values for fold-safe selection ablation.",
+    )
+    aba.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_ablation_artifacts"))
     return parser

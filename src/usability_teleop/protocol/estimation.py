@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +37,7 @@ def run_estimation_lane(
     inner_seed: int,
     top_k_per_axis: int | None,
     class_balance: ClassBalanceMode,
+    workers: int = 1,
     models_config: Path | None = None,
     logger: object | None = None,
 ) -> EstimationOutputs:
@@ -48,33 +50,68 @@ def run_estimation_lane(
     cls_models = cls_pool[:max_models] if max_models is not None else cls_pool
     selection_cfg = SelectionConfig(top_k_per_axis=top_k_per_axis)
 
-    reg_df = run_regression_estimation(
-        x_user,
-        y_reg,
-        feature_sets,
-        reg_models,
-        random_seed=seed,
-        tuning_scoring=regression_scoring,
-        inner_cv_max_splits=regression_inner_max_splits,
-        inner_cv_shuffle=inner_shuffle,
-        inner_cv_seed=inner_seed,
-        selection_cfg=selection_cfg,
-        logger=logger,
-    )
-    cls_df = run_classification_estimation(
-        x_user,
-        y_cls,
-        feature_sets,
-        cls_models,
-        random_seed=seed,
-        tuning_scoring=classification_scoring,
-        inner_cv_max_splits=classification_inner_max_splits,
-        inner_cv_shuffle=inner_shuffle,
-        inner_cv_seed=inner_seed,
-        class_balance=class_balance,
-        selection_cfg=selection_cfg,
-        logger=logger,
-    )
+    workers = max(1, int(workers))
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=min(workers, 2)) as executor:
+            reg_future = executor.submit(
+                run_regression_estimation,
+                x_user,
+                y_reg,
+                feature_sets,
+                reg_models,
+                random_seed=seed,
+                tuning_scoring=regression_scoring,
+                inner_cv_max_splits=regression_inner_max_splits,
+                inner_cv_shuffle=inner_shuffle,
+                inner_cv_seed=inner_seed,
+                selection_cfg=selection_cfg,
+                logger=logger,
+            )
+            cls_future = executor.submit(
+                run_classification_estimation,
+                x_user,
+                y_cls,
+                feature_sets,
+                cls_models,
+                random_seed=seed,
+                tuning_scoring=classification_scoring,
+                inner_cv_max_splits=classification_inner_max_splits,
+                inner_cv_shuffle=inner_shuffle,
+                inner_cv_seed=inner_seed,
+                class_balance=class_balance,
+                selection_cfg=selection_cfg,
+                logger=logger,
+            )
+            reg_df = reg_future.result()
+            cls_df = cls_future.result()
+    else:
+        reg_df = run_regression_estimation(
+            x_user,
+            y_reg,
+            feature_sets,
+            reg_models,
+            random_seed=seed,
+            tuning_scoring=regression_scoring,
+            inner_cv_max_splits=regression_inner_max_splits,
+            inner_cv_shuffle=inner_shuffle,
+            inner_cv_seed=inner_seed,
+            selection_cfg=selection_cfg,
+            logger=logger,
+        )
+        cls_df = run_classification_estimation(
+            x_user,
+            y_cls,
+            feature_sets,
+            cls_models,
+            random_seed=seed,
+            tuning_scoring=classification_scoring,
+            inner_cv_max_splits=classification_inner_max_splits,
+            inner_cv_shuffle=inner_shuffle,
+            inner_cv_seed=inner_seed,
+            class_balance=class_balance,
+            selection_cfg=selection_cfg,
+            logger=logger,
+        )
     best_reg = reg_df.sort_values("r2", ascending=False).groupby("target", as_index=False).first()
     best_reg["selection_metric"] = "r2"
     best_reg["selection_score"] = best_reg["r2"]
