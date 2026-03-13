@@ -1,63 +1,290 @@
-# Usability Teleop (Clean Pipeline)
+# Usability Teleop
 
-This repository is the clean, reproducible implementation track for validating claims in `draft.tex`.
+Clean, reproducible, publication-grade pipeline for validating the claims in `draft.tex`.
 
-## Current Status
-- Phase 0 foundation initialized.
-- Next: Phase 1 data contracts and ingestion.
+This repository is the experiment source of truth:
+- data ingestion and validation,
+- feature construction and fold-safe selection,
+- LOSO estimation,
+- statistical validation (correlation/permutation/inference),
+- final refit and explainability,
+- publication-ready figures and tables,
+- ablation study outputs.
 
-## Repository Layout
-- `src/usability_teleop/`: package code (data, features, modeling, stats, viz, cli)
-- `configs/`: experiment configurations
-- `scripts/`: orchestration scripts
-- `data/raw/`: immutable source datasets
-- `data/interim/`, `data/processed/`: generated datasets
-- `outputs/figures/`, `outputs/tables/`, `outputs/runs/`: reproducible artifacts
-- `tests/`: unit/smoke tests
+## 1) Repository Structure
 
-## Environment
-Create environment from file:
+```text
+.
+├── AGENTS.md
+├── DATA_CONTRACTS.md
+├── DEV_HISTORY.md
+├── IMPLEMENTATION_PLAN.md
+├── TASK_LIST.md
+├── README.md
+├── configs/
+│   ├── default.yaml
+│   ├── experiment.yaml
+│   ├── models.yaml
+│   ├── models_fast.yaml
+│   └── models_full.yaml
+├── data/
+│   ├── raw/
+│   ├── interim/
+│   └── processed/
+├── outputs/
+│   ├── tables/
+│   ├── figures/
+│   └── runs/
+├── src/usability_teleop/
+└── tests/
+```
+
+## 2) Environment Setup
 
 ```bash
 conda env create -f environment.yml
 conda activate usability_teleop_clean
-```
-
-## Install Package
-
-```bash
 python -m pip install -e .
 python -m pip install -e .[dev]
 ```
 
-## Sanity Commands
+Sanity checks:
 
 ```bash
 usability-teleop doctor
+pytest -q
+```
+
+## 3) Data Inputs
+
+Expected raw inputs are validated from `data/raw/` (see `DATA_CONTRACTS.md`):
+- `raw_features_full.csv`
+- `labels_full.csv`
+- `User_risposte.xlsx`
+- `tempi_media.csv`
+
+Validate and normalize:
+
+```bash
 usability-teleop validate-data --source-dir data/raw --copy-to-raw
-usability-teleop run-correlation --data-dir data/raw
-usability-teleop run-regression --data-dir data/raw --max-feature-sets 2 --max-models 2 --workers 2
-usability-teleop run-classification --data-dir data/raw --max-feature-sets 2 --max-models 2
-usability-teleop run-permutation --data-dir data/raw --tables-dir outputs/tables --max-feature-sets 2 --max-models 2 --n-permutations 50
-usability-teleop run-inference --data-dir data/raw --tables-dir outputs/tables --max-feature-sets 2 --max-models 2
-usability-teleop run-shap --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --max-feature-sets 2 --max-models 2 --max-targets 3
-usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures
-usability-teleop run-rq2-end2end --data-dir data/raw --max-models 10 --workers 4
-pytest
+```
+
+## 4) Active CLI Commands
+
+### Core Protocol
+- `run-estimation`
+- `run-stat-validation`
+- `fit-final-models`
+- `run-final-explainability`
+- `build-figures`
+- `build-paper-artifacts`
+
+### Ablation
+- `run-ablation`
+- `build-ablation-figures`
+
+### Utilities
+- `doctor`
+- `validate-data`
+
+## 5) Key Configuration Knobs
+
+### Model profile (`--models-config`)
+- `configs/models_fast.yaml`: faster smoke/development runs.
+- `configs/models_full.yaml`: expanded paper-grade search profile.
+- `configs/models.yaml`: baseline/default profile.
+
+### Experiment protocol (`--experiment-config`)
+Use `configs/experiment.yaml` (or custom path) for:
+- scoring,
+- inner CV settings,
+- permutation defaults,
+- inference defaults,
+- SHAP defaults.
+
+### Class balancing
+`--class-balance` is deprecated and removed from active CLI commands.
+- current protocol runs with balancing disabled (`none`) for both estimation and ablation.
+- rationale: avoid asymmetry with regression and keep current comparisons methodologically aligned.
+- future work can reintroduce balancing as an explicit, isolated experiment axis.
+
+### Feature-selection knob
+- `--top-k-per-axis` controls fold-safe variance-based screening per quaternion axis.
+- `--max-feature-sets` only caps run breadth (not statistical selection).
+- `run-ablation` varies fold-safe selection via `--top-k-per-axis` as a comma list (for example `1,2,3,5,8`).
+
+## 6) Stage-by-Stage Reproducible Pipeline
+
+Use this sequence for transparent, resume-by-stage execution.
+
+```bash
+conda activate usability_teleop_clean
+
+# 1) Estimation (nested LOSO)
+usability-teleop run-estimation \
+  --data-dir data/raw \
+  --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
+  --max-models 10 \
+  --max-feature-sets 16 \
+  --top-k-per-axis 3 \
+  --seed 42
+
+# 2) Statistical validation (correlation + permutation + inference)
+usability-teleop run-stat-validation \
+  --data-dir data/raw \
+  --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
+  --max-models 10 \
+  --max-feature-sets 16 \
+  --n-permutations 1000 \
+  --seed 42
+
+# 3) Final refit from winners
+usability-teleop fit-final-models \
+  --data-dir data/raw \
+  --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
+  --top-k-per-axis 3 \
+  --seed 42
+
+# 4) Explainability from final models
+usability-teleop run-final-explainability \
+  --data-dir data/raw \
+  --tables-dir outputs/tables \
+  --figures-dir outputs/figures \
+  --experiment-config configs/experiment.yaml \
+  --max-targets 5 \
+  --seed 42
+
+# 5) Build protocol figures from existing CSV tables
+usability-teleop build-figures \
+  --tables-dir outputs/tables \
+  --figures-dir outputs/figures \
+  --runs-dir outputs/runs
+
+# 6) Ablation tables
+usability-teleop run-ablation \
+  --data-dir data/raw \
+  --tables-dir outputs/tables \
+  --models-config configs/models_full.yaml \
+  --max-models 10 \
+  --max-feature-sets 16 \
+  --top-k-per-axis 1,2,3,5,8 \
+  --seed 42
+
+# 7) Ablation figures
+usability-teleop build-ablation-figures \
+  --tables-dir outputs/tables \
+  --figures-dir outputs/figures \
+  --runs-dir outputs/runs
+```
+
+## 7) One-Command Convenience Run
+
+```bash
+usability-teleop build-paper-artifacts \
+  --data-dir data/raw \
+  --tables-dir outputs/tables \
+  --figures-dir outputs/figures \
+  --models-config configs/models_full.yaml \
+  --max-models 10 \
+  --max-feature-sets 16 \
+  --top-k-per-axis 3 \
+  --n-permutations 1000 \
+  --seed 42
+```
+
+## 8) Output Contracts
+
+### Core tables (`outputs/tables/`)
+- `correlation_results.csv`
+- `estimation_regression.csv`
+- `estimation_classification.csv`
+- `estimation_best_configs.csv`
+- `permutation_regression_results.csv`
+- `permutation_classification_results.csv`
+- `inference_regression.csv`
+- `inference_classification.csv`
+- `regression_best_global_vs_target_specific.csv`
+- `classification_best_global_vs_target_specific.csv`
+- `final_models.csv`
+- `final_explainability_shap.csv`
+
+### Ablation tables (`outputs/tables/`)
+- `ablation_summary.csv`
+- `ablation_breakdown.csv`
+- `ablation_feature_filter_summary.csv`
+- `ablation_target_distributions.csv`
+
+### Core figures (`outputs/figures/`)
+- `figure_correlation_heatmap.png`
+- `figure_regression_overview.png`
+- `figure_classification_overview.png`
+- `figure_permutation_pvalues.png`
+- `figure_regression_global_vs_target_specific.png`
+- `figure_classification_global_vs_target_specific.png`
+- `figure_inference_regression_ci.png`
+- `figure_inference_classification_ci.png`
+- `figure_inference_pvalues.png`
+- `figure_inference_bayesian.png`
+- `figure_protocol_dashboard.png`
+
+### Ablation figures (`outputs/figures/`)
+- `figure_ablation_stage_summary.png`
+- `figure_ablation_delta_heatmap.png`
+- `figure_ablation_target_distributions.png`
+
+### Run metadata (`outputs/runs/`)
+- `build_figures_report.json`
+- `build_ablation_figures_report.json`
+
+## 9) Cluster Execution Pattern
+
+Recommended pattern:
+1. Run each stage as an independent job (estimation, stat-validation, final-fit, explainability, figure build, ablation).
+2. Keep shared storage paths fixed (`outputs/tables`, `outputs/figures`, `outputs/runs`).
+3. Re-run only failed or updated stages; downstream stages consume existing CSV artifacts.
+
+Example shell skeleton:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+conda activate usability_teleop_clean
+
+PROFILE=configs/models_full.yaml
+SEED=42
+
+usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --seed "$SEED"
+usability-teleop run-stat-validation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --n-permutations 1000 --seed "$SEED"
+usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --seed "$SEED"
+usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --seed "$SEED"
+usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
+usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --top-k-per-axis 1,2,3,5,8 --seed "$SEED"
+usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
+```
+
+## 10) Testing and Quality Gates
+
+Run before commit/merge:
+
+```bash
+pytest -q
 ruff check .
 ruff format --check .
 mypy
 ```
 
-Notes:
-- `--max-feature-sets N` limits how many predefined axis-combination configurations are executed.
-- It is not statistical feature selection; it is a run-scope cap for faster iteration.
-- `--workers K` parallelizes Stage 2 outer tasks (feature-set/model combinations); ETA remains based on completed tasks.
-- `configs/models.yaml` defines model families and hyperparameter grids.
-- `configs/experiment.yaml` defines protocol settings (tuning metric, inner-CV behavior, permutation alpha/defaults, SHAP defaults).
-- Every run command accepts `--experiment-config path/to/experiment.yaml` to override protocol defaults.
+## 11) Deprecation Policy
 
-## Working Rules
-- All production implementation goes under `src/`.
-- Every figure/table must be reproducible by command + config.
-- Use deterministic seeds and explicit config files for all experiments.
+- No legacy/versioned planning files (`*_v*.md`) are maintained.
+- Historical milestones are centralized in `DEV_HISTORY.md`.
+- Canonical planning docs are `IMPLEMENTATION_PLAN.md` and `TASK_LIST.md` only.
+
+## 12) Troubleshooting
+
+- Missing figure/table input: rerun the upstream stage; figure builders intentionally skip missing dependencies with warnings.
+- Unexpected parser rejection for balancing mode: this flag is currently deprecated and unavailable.
+- Slow iteration: use `configs/models_fast.yaml`, lower `--max-models`, `--max-feature-sets`, and `--n-permutations`.

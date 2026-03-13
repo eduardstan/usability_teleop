@@ -16,7 +16,7 @@ from usability_teleop.features.ee_quat import FeatureSetSpec, build_feature_set
 from usability_teleop.modeling.cv import classification_inner_cv, fit_with_tuning, loso_indices
 from usability_teleop.modeling.registry import ModelSpec, build_estimator
 
-ClassBalanceMode = Literal["none", "oversample", "undersample", "smote"]
+ClassBalanceMode = Literal["none", "smote"]
 
 
 def _auc_from_estimator(estimator: Any, x_test: np.ndarray) -> float:
@@ -89,14 +89,7 @@ def _rebalance_binary_train(
         y_out = np.concatenate([y_train, y_synth])
         return x_out, y_out
 
-    if method == "oversample":
-        extra = rng.choice(minor_idx, size=len(major_idx) - len(minor_idx), replace=True)
-        keep_idx = np.concatenate([major_idx, minor_idx, extra])
-    else:
-        major_keep = rng.choice(major_idx, size=len(minor_idx), replace=False)
-        keep_idx = np.concatenate([minor_idx, major_keep])
-    rng.shuffle(keep_idx)
-    return x_train[keep_idx], y_train[keep_idx]
+    raise ValueError(f"Unsupported class balance mode: {method}")
 
 
 def run_classification_benchmark(
