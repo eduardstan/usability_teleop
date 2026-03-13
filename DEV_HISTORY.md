@@ -1,5 +1,7 @@
 # Development History
 
+Last updated: 2026-03-13
+
 This file summarizes major repository milestones that were previously tracked across versioned planning/validation artifacts.
 
 ## 2026-03 (v3): Protocol Unification
@@ -37,6 +39,23 @@ This file summarizes major repository milestones that were previously tracked ac
 - Unified ablation UX naming to `--top-k-per-axis` and removed alternate argument naming.
 - Deprecated class-balance in active CLI and disabled balancing in current protocol runs.
 - Expanded `models_full.yaml` to a broader paper-grade hyperparameter space.
+
+## 2026-03-13 (Current Patch): Runtime Metadata + API Documentation Hardening
+- Added systematic run-manifest emission for stage commands with:
+  - UTC start/end timestamps,
+  - elapsed seconds,
+  - command args,
+  - status and error payload,
+  - git commit hash,
+  - output artifact paths.
+- Introduced and documented the two-manifest pattern:
+  - immutable `run_manifest_<command>_<timestamp>.json`,
+  - latest pointer `run_manifest_<command>_latest.json`.
+- Extended ablation CLI with `--num-workers` and documented worker semantics.
+- Corrected ablation defaults to full-search behavior when caps are omitted:
+  - `--max-models` unset -> all models from selected YAML,
+  - `--max-feature-sets` unset -> all feature sets.
+- Reworked `README.md` and `EXPERIMENTS.md` API/default sections for cluster reproducibility clarity.
 
 ## Historical Artifacts Consolidated
 The following versioned artifacts were consolidated into this history and canonical files:

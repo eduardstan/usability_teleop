@@ -108,7 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     ab = sub.add_parser(
         "run-ablation",
-        help="Run ablation study tables (feature selection + class balance factors)",
+        help="Run ablation study tables (baseline vs fold-safe feature-selection stages)",
     )
     ab.add_argument("--data-dir", default="data/raw")
     ab.add_argument("--tables-dir", default="outputs/tables")
@@ -116,8 +116,14 @@ def build_parser() -> argparse.ArgumentParser:
     ab.add_argument("--seed", type=int, default=42)
     ab.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
     ab.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
-    ab.add_argument("--max-models", type=int, default=2)
-    ab.add_argument("--max-feature-sets", type=int, default=4)
+    ab.add_argument("--max-models", type=int, default=None)
+    ab.add_argument("--max-feature-sets", type=int, default=None)
+    ab.add_argument(
+        "--num-workers",
+        type=int,
+        default=1,
+        help="Parallel workers for ablation stages (1 keeps deterministic sequential execution).",
+    )
     ab.add_argument(
         "--top-k-per-axis",
         default="1,2,3,5",

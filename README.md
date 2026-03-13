@@ -1,5 +1,7 @@
 # Usability Teleop
 
+Last updated: 2026-03-13
+
 Clean, reproducible, publication-grade pipeline for validating the claims in `draft.tex`.
 
 This repository is the experiment source of truth:
@@ -87,7 +89,137 @@ usability-teleop validate-data --source-dir data/raw --copy-to-raw
 - `doctor`
 - `validate-data`
 
-## 5) Key Configuration Knobs
+## 5) CLI API Reference
+
+This section documents the active API surface and exact parameter semantics.
+
+### Global default semantics
+- `--models-config`:
+  - unset: use `configs/models.yaml` (registry default).
+  - set: load the specified model profile YAML.
+- `--max-models`:
+  - unset (`None`): use all models defined in the selected `models-config` YAML.
+  - set (`N`): keep first `N` model families per task from the selected YAML.
+- `--max-feature-sets`:
+  - unset (`None`): use all generated feature-set definitions.
+  - set (`N`): keep first `N` feature-set definitions.
+- `--n-permutations`:
+  - unset (`None`): use the default from `--experiment-config` (`configs/experiment.yaml` by default).
+- `--top-k-per-axis`:
+  - for estimation/final-fit/full-pipeline: single integer `k` or unset (`None`) for no fold-safe top-k screening.
+  - for ablation: comma-separated list (for example `1,2,3,5`), each value defines one ablation stage.
+- `--num-workers`:
+  - currently exposed on `run-ablation`.
+  - `1` means deterministic sequential stage execution.
+  - `>1` runs ablation stages in parallel workers.
+
+### `doctor`
+- Runs environment/project sanity checks.
+- Parameters: none.
+
+### `validate-data`
+- Purpose: strict raw-data contract validation (+ optional canonical copy).
+- Parameters:
+  - `--source-dir` (default: `data/raw`): input directory to validate.
+  - `--copy-to-raw` (flag): if set, copy validated artifacts to canonical `data/raw`.
+
+### `run-estimation`
+- Purpose: nested LOSO estimation for regression + classification tracks.
+- Parameters:
+  - `--data-dir` (default: `data/raw`)
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--runs-dir` (default: `outputs/runs`)
+  - `--seed` (default: `42`)
+  - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--max-models` (default: unset; all models from YAML)
+  - `--max-feature-sets` (default: unset; all feature sets)
+  - `--top-k-per-axis` (default: unset; no fold-safe top-k screening)
+
+### `run-stat-validation`
+- Purpose: correlation + permutation tests + inference + global-vs-target tables.
+- Parameters:
+  - `--data-dir` (default: `data/raw`)
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--runs-dir` (default: `outputs/runs`)
+  - `--seed` (default: `42`)
+  - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--max-models` (default: unset; all models from YAML)
+  - `--max-feature-sets` (default: unset; all feature sets)
+  - `--n-permutations` (default: unset; uses experiment config default)
+  - `--nested-permutation` (flag): enable nested permutation mode.
+
+### `fit-final-models`
+- Purpose: fit final models from `estimation_best_configs.csv`.
+- Parameters:
+  - `--data-dir` (default: `data/raw`)
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--runs-dir` (default: `outputs/runs`)
+  - `--seed` (default: `42`)
+  - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--top-k-per-axis` (default: unset; no fold-safe top-k screening)
+
+### `run-final-explainability`
+- Purpose: SHAP explainability using `final_models.csv`.
+- Parameters:
+  - `--data-dir` (default: `data/raw`)
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--figures-dir` (default: `outputs/figures`)
+  - `--runs-dir` (default: `outputs/runs`)
+  - `--seed` (default: `42`)
+  - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
+  - `--max-targets` (default: unset; uses experiment config SHAP default)
+
+### `build-figures`
+- Purpose: build protocol figures from existing CSV tables only (no recompute).
+- Parameters:
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--figures-dir` (default: `outputs/figures`)
+  - `--runs-dir` (default: `outputs/runs`)
+
+### `build-paper-artifacts`
+- Purpose: one-command full protocol run (tables + figures).
+- Parameters:
+  - `--data-dir` (default: `data/raw`)
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--figures-dir` (default: `outputs/figures`)
+  - `--runs-dir` (default: `outputs/runs`)
+  - `--seed` (default: `42`)
+  - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--max-models` (default: unset; all models from YAML)
+  - `--max-feature-sets` (default: unset; all feature sets)
+  - `--top-k-per-axis` (default: unset; no fold-safe top-k screening)
+  - `--max-targets` (default: `5`)
+  - `--alpha` (default: `0.05`)
+  - `--effect-threshold` (default: `0.30`)
+  - `--n-permutations` (default: unset; uses experiment config default)
+  - `--nested-permutation` (flag): enable nested permutation mode.
+
+### `run-ablation`
+- Purpose: ablation tables for baseline vs fold-safe top-k-per-axis filtering stages.
+- Parameters:
+  - `--data-dir` (default: `data/raw`)
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--runs-dir` (default: `outputs/runs`)
+  - `--seed` (default: `42`)
+  - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--max-models` (default: unset; all models from YAML)
+  - `--max-feature-sets` (default: unset; all feature sets)
+  - `--num-workers` (default: `1`; parallel ablation stage workers)
+  - `--top-k-per-axis` (default: `1,2,3,5`; comma-separated ablation stage values)
+
+### `build-ablation-figures`
+- Purpose: ablation figures from existing ablation CSV tables only.
+- Parameters:
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--figures-dir` (default: `outputs/figures`)
+  - `--runs-dir` (default: `outputs/runs`)
+
+## 6) Key Configuration Knobs
 
 ### Model profile (`--models-config`)
 - `configs/models_fast.yaml`: faster smoke/development runs.
@@ -113,7 +245,7 @@ Use `configs/experiment.yaml` (or custom path) for:
 - `--max-feature-sets` only caps run breadth (not statistical selection).
 - `run-ablation` varies fold-safe selection via `--top-k-per-axis` as a comma list (for example `1,2,3,5,8`).
 
-## 6) Stage-by-Stage Reproducible Pipeline
+## 7) Stage-by-Stage Reproducible Pipeline
 
 Use this sequence for transparent, resume-by-stage execution.
 
@@ -168,6 +300,7 @@ usability-teleop run-ablation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
   --models-config configs/models_full.yaml \
+  --num-workers 4 \
   --max-models 10 \
   --max-feature-sets 16 \
   --top-k-per-axis 1,2,3,5,8 \
@@ -180,7 +313,7 @@ usability-teleop build-ablation-figures \
   --runs-dir outputs/runs
 ```
 
-## 7) One-Command Convenience Run
+## 8) One-Command Convenience Run
 
 ```bash
 usability-teleop build-paper-artifacts \
@@ -195,7 +328,7 @@ usability-teleop build-paper-artifacts \
   --seed 42
 ```
 
-## 8) Output Contracts
+## 9) Output Contracts
 
 ### Core tables (`outputs/tables/`)
 - `correlation_results.csv`
@@ -242,8 +375,10 @@ usability-teleop build-paper-artifacts \
 - `run_manifest_<command>_latest.json`
 
 Each `run_manifest_*` stores command args, UTC start/end timestamps, elapsed seconds, git commit hash, status, output paths, and error details.
+- `run_manifest_<command>_<timestamp>.json` is immutable run history.
+- `run_manifest_<command>_latest.json` is overwritten by the most recent run of that command.
 
-## 9) Cluster Execution Pattern
+## 10) Cluster Execution Pattern
 
 Recommended pattern:
 1. Run each stage as an independent job (estimation, stat-validation, final-fit, explainability, figure build, ablation).
@@ -271,7 +406,7 @@ usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --
 usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
 ```
 
-## 10) Testing and Quality Gates
+## 11) Testing and Quality Gates
 
 Run before commit/merge:
 

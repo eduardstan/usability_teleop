@@ -1,5 +1,7 @@
 # EXPERIMENTS.md
 
+Last updated: 2026-03-13
+
 This document is the reproducible runbook for generating all paper-ready artifacts
 (tables, figures, statistical validation outputs, final models, explainability, and ablation results).
 
@@ -97,6 +99,7 @@ usability-teleop run-ablation \
   --models-config "$PROFILE" \
   --max-models 2 \
   --max-feature-sets 2 \
+  --num-workers 1 \
   --top-k-per-axis 1,2,3 \
   --seed "$SEED"
 
@@ -166,6 +169,7 @@ usability-teleop run-ablation \
   --models-config "$PROFILE" \
   --max-models 10 \
   --max-feature-sets 16 \
+  --num-workers 4 \
   --top-k-per-axis 1,2,3,5,8 \
   --seed "$SEED"
 
@@ -196,9 +200,14 @@ usability-teleop build-paper-artifacts \
 Then run ablation explicitly:
 
 ```bash
-usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config configs/models_full.yaml --max-models 10 --max-feature-sets 16 --top-k-per-axis 1,2,3,5,8 --seed 42
+usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config configs/models_full.yaml --max-models 10 --max-feature-sets 16 --num-workers 4 --top-k-per-axis 1,2,3,5,8 --seed 42
 usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
 ```
+
+Notes:
+- If `--max-models` is omitted, all models defined in the selected models YAML are evaluated.
+- If `--max-feature-sets` is omitted, all generated feature-set definitions are evaluated.
+- For ablation, `--num-workers` controls stage-level parallelism (default `1` for deterministic sequential execution).
 
 ## 7) Expected Artifacts
 
@@ -254,6 +263,8 @@ Each run manifest includes:
 - status (`ok`/`error`)
 - output paths
 - error details (if any)
+- timestamped manifests are immutable history snapshots
+- `*_latest.json` manifests are rolling pointers to latest command runs
 
 ## 8) Minimal Verification Commands
 
