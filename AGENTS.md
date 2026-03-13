@@ -48,7 +48,7 @@ Model grids are config-driven and selected with `--models-config`:
 ## Methodological Invariants
 - Deterministic runs: fixed seed and explicit config references.
 - Outer evaluation: LOSO-based protocols.
-- Class balancing policy: `none|smote` only.
+- Class balancing is currently disabled in active CLI surfaces (future feature).
 - Feature selection: fold-safe selection logic (`top_k_per_axis`) where applicable.
 - Statistical validation includes both tracks:
   - permutation tests,

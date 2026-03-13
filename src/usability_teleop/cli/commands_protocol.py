@@ -58,7 +58,7 @@ def _run_estimation(
         inner_shuffle=exp.cv.inner_shuffle,
         inner_seed=exp.cv.inner_random_seed,
         top_k_per_axis=args.top_k_per_axis,
-        class_balance=args.class_balance,
+        class_balance="none",
         models_config=models_config,
         logger=logger,
     )
@@ -88,7 +88,7 @@ def _fit_final_models(
         inner_shuffle=exp.cv.inner_shuffle,
         inner_seed=exp.cv.inner_random_seed,
         top_k_per_axis=args.top_k_per_axis,
-        class_balance=args.class_balance,
+        class_balance="none",
         models_config=models_config,
         logger=logger,
     )
@@ -860,14 +860,27 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
     y_reg = prepare_targets(bundle.questionnaire, "regression")
     y_cls = prepare_targets(bundle.questionnaire, "classification")
     try:
+        topk_values = sorted(
+            {
+                int(tok.strip())
+                for tok in str(args.ablation_topk_values).split(",")
+                if tok.strip()
+            }
+        )
+    except ValueError:
+        logger.error("run-ablation FAILED: invalid --ablation-topk-values=%s", args.ablation_topk_values)
+        return 1
+    if not topk_values or any(v <= 0 for v in topk_values):
+        logger.error("run-ablation FAILED: --ablation-topk-values must contain positive integers")
+        return 1
+    try:
         outputs = run_ablation_study(
             x_base=x_user,
             y_reg=y_reg,
             y_cls=y_cls,
             max_models=args.max_models,
             max_feature_sets=args.max_feature_sets,
-            top_k_per_axis=args.top_k_per_axis,
-            class_balance=args.class_balance,
+            topk_values=topk_values,
             models_config=models_config,
             seed=args.seed,
             workers=1,

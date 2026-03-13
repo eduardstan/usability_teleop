@@ -8,58 +8,65 @@ regression:
     estimator: sklearn.linear_model.Ridge
     fixed_params: {}
     param_grid:
-      alpha: [0.01, 0.1, 1.0, 10.0]
+      alpha: [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
 
   - name: Lasso
     estimator: sklearn.linear_model.Lasso
     fixed_params:
       max_iter: 50000
     param_grid:
-      alpha: [0.001, 0.01, 0.1]
+      alpha: [0.0001, 0.001, 0.01, 0.1, 1.0]
 
   - name: ElasticNet
     estimator: sklearn.linear_model.ElasticNet
     fixed_params:
       max_iter: 50000
     param_grid:
-      alpha: [0.01, 0.1, 1.0]
-      l1_ratio: [0.1, 0.5, 0.9]
+      alpha: [0.0001, 0.001, 0.01, 0.1, 1.0]
+      l1_ratio: [0.1, 0.3, 0.5, 0.7, 0.9]
 
   - name: KNeighborsRegressor
     estimator: sklearn.neighbors.KNeighborsRegressor
     fixed_params: {}
     param_grid:
-      n_neighbors: [1, 3, 5]
+      n_neighbors: [1, 3, 5, 7, 9]
+      weights: ["uniform", "distance"]
+      p: [1, 2]
 
   - name: SVR
     estimator: sklearn.svm.SVR
     fixed_params: {}
     param_grid:
-      C: [0.1, 1.0, 10.0]
-      kernel: ["linear"]
+      C: [0.01, 0.1, 1.0, 10.0, 100.0]
+      epsilon: [0.01, 0.05, 0.1, 0.2]
+      kernel: ["linear", "rbf"]
+      gamma: ["scale", "auto"]
 
   - name: DecisionTreeRegressor
     estimator: sklearn.tree.DecisionTreeRegressor
     fixed_params: {}
     param_grid:
-      max_depth: [3, 5, null]
-      min_samples_leaf: [1, 3, 5]
+      max_depth: [2, 3, 5, 8, null]
+      min_samples_split: [2, 4, 8]
+      min_samples_leaf: [1, 2, 4, 8]
 
   - name: RandomForestRegressor
     estimator: sklearn.ensemble.RandomForestRegressor
     fixed_params: {}
     param_grid:
-      n_estimators: [50, 100]
-      max_depth: [3, 5, null]
-      min_samples_leaf: [1, 3, 5]
+      n_estimators: [100, 200, 400]
+      max_depth: [3, 5, 8, null]
+      min_samples_leaf: [1, 2, 4]
+      max_features: ["sqrt", "log2", 1.0]
 
   - name: GradientBoostingRegressor
     estimator: sklearn.ensemble.GradientBoostingRegressor
     fixed_params: {}
     param_grid:
-      n_estimators: [50, 100]
-      learning_rate: [0.05, 0.1]
-      max_depth: [2, 3]
+      n_estimators: [100, 200, 400]
+      learning_rate: [0.01, 0.03, 0.05, 0.1]
+      max_depth: [2, 3, 4]
+      subsample: [0.7, 0.85, 1.0]
 
   - name: XGBRegressor
     estimator: xgboost.XGBRegressor
@@ -68,9 +75,12 @@ regression:
       n_jobs: 1
       verbosity: 0
     param_grid:
-      n_estimators: [50, 100]
-      learning_rate: [0.05, 0.1]
-      max_depth: [3, 5]
+      n_estimators: [100, 200, 400]
+      learning_rate: [0.01, 0.03, 0.05, 0.1]
+      max_depth: [3, 5, 7]
+      subsample: [0.7, 0.9, 1.0]
+      colsample_bytree: [0.7, 0.9, 1.0]
+      reg_lambda: [0.1, 1.0, 10.0]
 
 classification:
   - name: RidgeLikeClassifier
@@ -78,65 +88,77 @@ classification:
     fixed_params:
       max_iter: 20000
     param_grid:
-      C: [0.1, 1.0, 10.0]
+      C: [0.01, 0.1, 1.0, 10.0, 100.0]
       penalty: ["l2"]
       solver: ["liblinear"]
+      class_weight: [null, "balanced"]
 
   - name: LassoLikeClassifier
     estimator: sklearn.linear_model.LogisticRegression
     fixed_params:
       max_iter: 20000
     param_grid:
-      C: [0.1, 1.0, 10.0]
+      C: [0.01, 0.1, 1.0, 10.0, 100.0]
       penalty: ["l1"]
       solver: ["liblinear"]
+      class_weight: [null, "balanced"]
 
   - name: ElasticNetClassifier
     estimator: sklearn.linear_model.LogisticRegression
     fixed_params:
       max_iter: 20000
     param_grid:
-      C: [0.1, 1.0, 10.0]
+      C: [0.01, 0.1, 1.0, 10.0, 100.0]
       penalty: ["elasticnet"]
       solver: ["saga"]
-      l1_ratio: [0.2, 0.5, 0.8]
+      l1_ratio: [0.1, 0.3, 0.5, 0.7, 0.9]
+      class_weight: [null, "balanced"]
 
   - name: KNeighborsClassifier
     estimator: sklearn.neighbors.KNeighborsClassifier
     fixed_params: {}
     param_grid:
-      n_neighbors: [1, 3, 5]
+      n_neighbors: [1, 3, 5, 7, 9]
+      weights: ["uniform", "distance"]
+      p: [1, 2]
 
   - name: SVC
     estimator: sklearn.svm.SVC
     fixed_params:
       probability: true
     param_grid:
-      C: [0.1, 1.0, 10.0]
-      kernel: ["linear"]
+      C: [0.01, 0.1, 1.0, 10.0, 100.0]
+      kernel: ["linear", "rbf"]
+      gamma: ["scale", "auto"]
+      class_weight: [null, "balanced"]
 
   - name: DecisionTreeClassifier
     estimator: sklearn.tree.DecisionTreeClassifier
     fixed_params: {}
     param_grid:
-      max_depth: [3, 5, null]
-      min_samples_leaf: [1, 3, 5]
+      max_depth: [2, 3, 5, 8, null]
+      min_samples_split: [2, 4, 8]
+      min_samples_leaf: [1, 2, 4, 8]
+      class_weight: [null, "balanced"]
 
   - name: RandomForestClassifier
     estimator: sklearn.ensemble.RandomForestClassifier
     fixed_params: {}
     param_grid:
-      n_estimators: [50, 100]
-      max_depth: [3, 5, null]
-      min_samples_leaf: [1, 3, 5]
+      n_estimators: [100, 200, 400]
+      max_depth: [3, 5, 8, null]
+      min_samples_leaf: [1, 2, 4]
+      max_features: ["sqrt", "log2", 1.0]
+      class_weight: [null, "balanced"]
 
   - name: GradientBoostingClassifier
     estimator: sklearn.ensemble.GradientBoostingClassifier
     fixed_params: {}
     param_grid:
-      n_estimators: [50, 100]
-      learning_rate: [0.05, 0.1]
-      max_depth: [2, 3]
+      n_estimators: [100, 200, 400]
+      learning_rate: [0.01, 0.03, 0.05, 0.1]
+      max_depth: [2, 3, 4]
+      subsample: [0.7, 0.85, 1.0]
 
   - name: XGBClassifier
     estimator: xgboost.XGBClassifier
@@ -145,9 +167,13 @@ classification:
       n_jobs: 1
       verbosity: 0
     param_grid:
-      n_estimators: [50, 100]
-      learning_rate: [0.05, 0.1]
-      max_depth: [3, 5]
+      n_estimators: [100, 200, 400]
+      learning_rate: [0.01, 0.03, 0.05, 0.1]
+      max_depth: [3, 5, 7]
+      subsample: [0.7, 0.9, 1.0]
+      colsample_bytree: [0.7, 0.9, 1.0]
+      reg_lambda: [0.1, 1.0, 10.0]
+      scale_pos_weight: [1.0, 2.0]
 
   - name: LinearDiscriminantAnalysis
     estimator: sklearn.discriminant_analysis.LinearDiscriminantAnalysis

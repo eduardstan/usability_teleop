@@ -91,7 +91,7 @@ usability-teleop validate-data --source-dir data/raw --copy-to-raw
 
 ### Model profile (`--models-config`)
 - `configs/models_fast.yaml`: faster smoke/development runs.
-- `configs/models_full.yaml`: larger paper-grade search profile.
+- `configs/models_full.yaml`: expanded paper-grade search profile.
 - `configs/models.yaml`: baseline/default profile.
 
 ### Experiment protocol (`--experiment-config`)
@@ -102,14 +102,16 @@ Use `configs/experiment.yaml` (or custom path) for:
 - inference defaults,
 - SHAP defaults.
 
-### Class balancing (`--class-balance`)
-Allowed values: `none|smote`.
-- applied only to classification paths,
-- never applied to regression.
+### Class balancing
+`--class-balance` is deprecated and removed from active CLI commands.
+- current protocol runs with balancing disabled (`none`) for both estimation and ablation.
+- rationale: avoid asymmetry with regression and keep current comparisons methodologically aligned.
+- future work can reintroduce balancing as an explicit, isolated experiment axis.
 
 ### Feature-selection knob
 - `--top-k-per-axis` controls fold-safe variance-based screening per quaternion axis.
 - `--max-feature-sets` only caps run breadth (not statistical selection).
+- `run-ablation` varies fold-safe selection via `--ablation-topk-values` (for example `1,2,3,5,8`).
 
 ## 6) Stage-by-Stage Reproducible Pipeline
 
@@ -126,7 +128,6 @@ usability-teleop run-estimation \
   --max-models 10 \
   --max-feature-sets 16 \
   --top-k-per-axis 3 \
-  --class-balance smote \
   --seed 42
 
 # 2) Statistical validation (correlation + permutation + inference)
@@ -145,7 +146,6 @@ usability-teleop fit-final-models \
   --tables-dir outputs/tables \
   --models-config configs/models_full.yaml \
   --top-k-per-axis 3 \
-  --class-balance smote \
   --seed 42
 
 # 4) Explainability from final models
@@ -170,8 +170,7 @@ usability-teleop run-ablation \
   --models-config configs/models_full.yaml \
   --max-models 10 \
   --max-feature-sets 16 \
-  --top-k-per-axis 3 \
-  --class-balance smote \
+  --ablation-topk-values 1,2,3,5,8 \
   --seed 42
 
 # 7) Ablation figures
@@ -192,7 +191,6 @@ usability-teleop build-paper-artifacts \
   --max-models 10 \
   --max-feature-sets 16 \
   --top-k-per-axis 3 \
-  --class-balance smote \
   --n-permutations 1000 \
   --seed 42
 ```
@@ -259,12 +257,12 @@ conda activate usability_teleop_clean
 PROFILE=configs/models_full.yaml
 SEED=42
 
-usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --class-balance smote --seed "$SEED"
+usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --seed "$SEED"
 usability-teleop run-stat-validation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --n-permutations 1000 --seed "$SEED"
-usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --class-balance smote --seed "$SEED"
+usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --seed "$SEED"
 usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --seed "$SEED"
 usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
-usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --class-balance smote --seed "$SEED"
+usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --ablation-topk-values 1,2,3,5,8 --seed "$SEED"
 usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
 ```
 
@@ -288,5 +286,5 @@ mypy
 ## 12) Troubleshooting
 
 - Missing figure/table input: rerun the upstream stage; figure builders intentionally skip missing dependencies with warnings.
-- Unexpected parser rejection for balancing mode: only `none|smote` is allowed.
+- Unexpected parser rejection for balancing mode: this flag is currently deprecated and unavailable.
 - Slow iteration: use `configs/models_fast.yaml`, lower `--max-models`, `--max-feature-sets`, and `--n-permutations`.

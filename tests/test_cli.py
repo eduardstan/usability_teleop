@@ -1,5 +1,3 @@
-import pytest
-
 from usability_teleop.cli.main import build_parser
 
 
@@ -36,9 +34,10 @@ def test_cli_supports_models_config_argument() -> None:
     assert args.models_config == "configs/models_fast.yaml"
 
 
-def test_cli_class_balance_restricts_to_none_or_smote() -> None:
+def test_cli_deprecates_class_balance_flag() -> None:
     parser = build_parser()
-    args = parser.parse_args(["run-estimation", "--class-balance", "smote"])
-    assert args.class_balance == "smote"
-    with pytest.raises(SystemExit):
-        parser.parse_args(["run-estimation", "--class-balance", "oversample"])
+    try:
+        parser.parse_args(["run-estimation", "--class-balance", "smote"])
+        assert False, "--class-balance should be removed from parser"
+    except SystemExit:
+        assert True
