@@ -40,6 +40,14 @@ def test_cli_run_ablation_uses_top_k_per_axis_list_argument() -> None:
     assert args.top_k_per_axis == "1,2,3"
 
 
+def test_cli_run_ablation_supports_num_workers_and_unset_caps() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["run-ablation", "--num-workers", "4"])
+    assert args.num_workers == 4
+    assert args.max_models is None
+    assert args.max_feature_sets is None
+
+
 def test_cli_supports_runs_dir_for_stage_commands() -> None:
     parser = build_parser()
     args = parser.parse_args(["run-estimation", "--runs-dir", "outputs/runs"])

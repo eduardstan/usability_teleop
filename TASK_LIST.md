@@ -1,5 +1,7 @@
 # Task List (Canonical)
 
+Last updated: 2026-03-13
+
 ## P0: Repository Hygiene
 - [x] Consolidate versioned planning/validation docs into canonical docs.
 - [x] Add `DEV_HISTORY.md` timeline summary.
@@ -28,13 +30,20 @@
 - [x] Add `--models-config` to major experiment commands.
 - [x] Expand `models_full.yaml` with broader paper-grade hyperparameter search space.
 - [ ] Add explicit run metadata fields for selected model-profile hash.
+- [x] Align default semantics so omitted `--max-models`/`--max-feature-sets` run full configured search spaces.
 
 ## P5: Documentation and Onboarding
 - [x] Rewrite `README.md` with full stage-by-stage reproducibility guidance.
 - [x] Refresh `AGENTS.md` for new-chat operational context.
+- [x] Add complete CLI/API parameter reference with default behavior and config fallback semantics.
 - [ ] Add a compact architecture diagram to README.
 
 ## P6: Validation and CI Coverage
 - [x] Keep core unit/smoke tests green after cleanup/refactors.
+- [x] Add CLI coverage for ablation `--num-workers` and unset cap defaults.
 - [ ] Add tests asserting classification global-vs-target-specific table schema.
 - [ ] Add smoke script for cluster-style sequential stage execution.
+
+## P7: Runtime Metadata
+- [x] Emit per-command run manifests with elapsed time and status for stage commands.
+- [x] Document `run_manifest_<command>_<timestamp>.json` vs `run_manifest_<command>_latest.json`.

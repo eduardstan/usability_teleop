@@ -1,5 +1,7 @@
 # Data Contracts (Phase 1)
 
+Last updated: 2026-03-13
+
 Canonical raw input files (expected in `data/raw/` once ingested):
 - `raw_features_full.csv`
 - `labels_full.csv`
@@ -37,3 +39,7 @@ Validate and optionally ingest data:
 ```bash
 usability-teleop validate-data --source-dir data/raw --copy-to-raw
 ```
+
+## Operational Notes
+- Data contracts are independent from model profile (`models_fast/full/default`).
+- Pipeline run metadata is recorded under `outputs/runs/`; data validation itself should be run before any stage command.

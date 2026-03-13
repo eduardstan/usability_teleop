@@ -1250,7 +1250,7 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
             topk_values=topk_values,
             models_config=models_config,
             seed=args.seed,
-            workers=1,
+            workers=args.num_workers,
             tuning_regression_scoring=exp.tuning.regression_scoring,
             tuning_classification_scoring=exp.tuning.classification_scoring,
             inner_regression_splits=exp.cv.regression_inner_max_splits,
