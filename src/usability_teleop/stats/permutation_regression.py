@@ -12,7 +12,7 @@ from usability_teleop.stats.inference_utils import loso_regression_trace
 from usability_teleop.stats.permutation_config import PermutationConfig
 from usability_teleop.stats.permutation_shared import (
     feature_set_by_name,
-    params_from_json,
+    params_from_result_row,
     spec_by_name,
 )
 
@@ -41,7 +41,7 @@ def run_regression_permutation_tests(
 
         model_name = str(best["model"])
         feature_name = str(best["feature_set"])
-        params = params_from_json(str(best.get("best_params_last_fold", "{}")))
+        params = params_from_result_row(best)
 
         spec = spec_by_name(model_specs, model_name)
         fs = feature_set_by_name(feature_sets, feature_name)

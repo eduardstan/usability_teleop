@@ -3,127 +3,128 @@
 from __future__ import annotations
 
 import argparse
+import importlib
+from collections.abc import Callable
 
-from usability_teleop.cli.commands_basic import cmd_doctor, cmd_run_correlation, cmd_validate_data
-from usability_teleop.cli.commands_inference import cmd_run_inference
-from usability_teleop.cli.commands_study import cmd_run_ablation_study
-from usability_teleop.cli.commands_rq2 import cmd_run_regression, cmd_run_rq2_end2end
-from usability_teleop.cli.commands_rq3 import (
-    cmd_build_figures,
-    cmd_run_classification,
-    cmd_run_permutation,
-    cmd_run_shap,
-)
-from usability_teleop.cli.commands_rq23 import cmd_run_rq23_end2end
+
+def _lazy_handler(module_name: str, handler_name: str) -> Callable[[argparse.Namespace, object], int]:
+    def _runner(args: argparse.Namespace, logger: object) -> int:
+        module = importlib.import_module(module_name)
+        handler = getattr(module, handler_name)
+        return handler(args, logger)
+
+    return _runner
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="usability-teleop")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("doctor", help="Validate project layout and runtime deps").set_defaults(func=cmd_doctor)
+    sub.add_parser("doctor", help="Validate project layout and runtime deps").set_defaults(
+        func=_lazy_handler("usability_teleop.cli.commands_basic", "cmd_doctor")
+    )
 
     v = sub.add_parser("validate-data", help="Validate raw data files against strict contracts")
     v.add_argument("--source-dir", default="data/raw", help="Directory containing required raw data files")
     v.add_argument("--copy-to-raw", action="store_true", help="Copy validated files to canonical data/raw")
-    v.set_defaults(func=cmd_validate_data)
+    v.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_basic", "cmd_validate_data"))
 
-    c = sub.add_parser("run-correlation", help="Run RQ1 correlation analysis and write result table")
-    c.add_argument("--data-dir", default="data/raw")
-    c.add_argument("--output", default="outputs/tables/correlation_results.csv")
-    c.add_argument("--alpha", type=float, default=0.05)
-    c.add_argument("--effect-threshold", type=float, default=0.30)
-    c.set_defaults(func=cmd_run_correlation)
+    est = sub.add_parser("run-estimation", help="Run unified estimation lane (nested LOSO)")
+    est.add_argument("--data-dir", default="data/raw")
+    est.add_argument("--tables-dir", default="outputs/tables")
+    est.add_argument("--seed", type=int, default=42)
+    est.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    est.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
+    est.add_argument("--max-models", type=int, default=None)
+    est.add_argument("--max-feature-sets", type=int, default=None)
+    est.add_argument("--top-k-per-axis", type=int, default=None)
+    est.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_estimation"))
 
-    r = sub.add_parser("run-regression", help="Run RQ2 regression benchmarks (global + target-specific)")
-    r.add_argument("--data-dir", default="data/raw")
-    r.add_argument("--output-dir", default="outputs/tables")
-    r.add_argument("--seed", type=int, default=42)
-    r.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    r.add_argument("--max-feature-sets", type=int, default=None)
-    r.add_argument("--max-models", type=int, default=None)
-    r.add_argument("--workers", type=int, default=1)
-    r.set_defaults(func=cmd_run_regression)
+    ff = sub.add_parser("fit-final-models", help="Fit final models from estimation winners")
+    ff.add_argument("--data-dir", default="data/raw")
+    ff.add_argument("--tables-dir", default="outputs/tables")
+    ff.add_argument("--seed", type=int, default=42)
+    ff.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    ff.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
+    ff.add_argument("--top-k-per-axis", type=int, default=None)
+    ff.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_fit_final_models"))
 
-    cls = sub.add_parser("run-classification", help="Run RQ3 binary classification benchmark")
-    cls.add_argument("--data-dir", default="data/raw")
-    cls.add_argument("--output", default="outputs/tables/classification_results.csv")
-    cls.add_argument("--seed", type=int, default=42)
-    cls.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    cls.add_argument("--max-feature-sets", type=int, default=None)
-    cls.add_argument("--max-models", type=int, default=None)
-    cls.set_defaults(func=cmd_run_classification)
+    fe = sub.add_parser("run-final-explainability", help="Run SHAP from final fitted models only")
+    fe.add_argument("--data-dir", default="data/raw")
+    fe.add_argument("--tables-dir", default="outputs/tables")
+    fe.add_argument("--figures-dir", default="outputs/figures")
+    fe.add_argument("--seed", type=int, default=42)
+    fe.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    fe.add_argument("--max-targets", type=int, default=None)
+    fe.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_final_explainability"))
 
-    p = sub.add_parser("run-permutation", help="Run permutation tests for best regression/classification configurations")
-    p.add_argument("--data-dir", default="data/raw")
-    p.add_argument("--tables-dir", default="outputs/tables")
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    p.add_argument("--n-permutations", type=int, default=None)
-    p.add_argument("--max-feature-sets", type=int, default=None)
-    p.add_argument("--max-models", type=int, default=None)
-    p.set_defaults(func=cmd_run_permutation)
+    stat = sub.add_parser(
+        "run-stat-validation",
+        help="Run unified statistical validation (permutation + inference + global-vs-local tables)",
+    )
+    stat.add_argument("--data-dir", default="data/raw")
+    stat.add_argument("--tables-dir", default="outputs/tables")
+    stat.add_argument("--seed", type=int, default=42)
+    stat.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    stat.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
+    stat.add_argument("--max-models", type=int, default=None)
+    stat.add_argument("--max-feature-sets", type=int, default=None)
+    stat.add_argument("--n-permutations", type=int, default=None)
+    stat.add_argument("--nested-permutation", action="store_true")
+    stat.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_stat_validation"))
 
-    inf = sub.add_parser("run-inference", help="Run extended inference bundle for RQ2/RQ3 best configs")
-    inf.add_argument("--data-dir", default="data/raw")
-    inf.add_argument("--tables-dir", default="outputs/tables")
-    inf.add_argument("--seed", type=int, default=42)
-    inf.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    inf.add_argument("--max-feature-sets", type=int, default=None)
-    inf.add_argument("--max-models", type=int, default=None)
-    inf.set_defaults(func=cmd_run_inference)
+    art = sub.add_parser(
+        "build-paper-artifacts",
+        help="Build full publication artifact bundle (tables + figures)",
+    )
+    art.add_argument("--data-dir", default="data/raw")
+    art.add_argument("--tables-dir", default="outputs/tables")
+    art.add_argument("--figures-dir", default="outputs/figures")
+    art.add_argument("--seed", type=int, default=42)
+    art.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    art.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
+    art.add_argument("--max-models", type=int, default=None)
+    art.add_argument("--max-feature-sets", type=int, default=None)
+    art.add_argument("--top-k-per-axis", type=int, default=None)
+    art.add_argument("--max-targets", type=int, default=5)
+    art.add_argument("--alpha", type=float, default=0.05)
+    art.add_argument("--effect-threshold", type=float, default=0.30)
+    art.add_argument("--n-permutations", type=int, default=None)
+    art.add_argument("--nested-permutation", action="store_true")
+    art.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_paper_artifacts"))
 
-    s = sub.add_parser("run-shap", help="Run SHAP explainability for selected best regression targets")
-    s.add_argument("--data-dir", default="data/raw")
-    s.add_argument("--tables-dir", default="outputs/tables")
-    s.add_argument("--figures-dir", default="outputs/figures")
-    s.add_argument("--seed", type=int, default=42)
-    s.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    s.add_argument("--max-targets", type=int, default=None)
-    s.add_argument("--max-feature-sets", type=int, default=None)
-    s.add_argument("--max-models", type=int, default=None)
-    s.set_defaults(func=cmd_run_shap)
+    figs = sub.add_parser(
+        "build-figures",
+        help="Build publication figures from existing CSV tables (no training/stat recompute)",
+    )
+    figs.add_argument("--tables-dir", default="outputs/tables")
+    figs.add_argument("--figures-dir", default="outputs/figures")
+    figs.add_argument("--runs-dir", default="outputs/runs")
+    figs.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_figures"))
 
-    f = sub.add_parser("build-figures", help="Build publication-ready figures from table artifacts")
-    f.add_argument("--tables-dir", default="outputs/tables")
-    f.add_argument("--figures-dir", default="outputs/figures")
-    f.set_defaults(func=cmd_build_figures)
+    ab = sub.add_parser(
+        "run-ablation",
+        help="Run ablation study tables (feature selection + class balance factors)",
+    )
+    ab.add_argument("--data-dir", default="data/raw")
+    ab.add_argument("--tables-dir", default="outputs/tables")
+    ab.add_argument("--seed", type=int, default=42)
+    ab.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
+    ab.add_argument("--models-config", default=None, help="Path to models YAML (fast/full profile)")
+    ab.add_argument("--max-models", type=int, default=2)
+    ab.add_argument("--max-feature-sets", type=int, default=4)
+    ab.add_argument(
+        "--top-k-per-axis",
+        default="1,2,3,5",
+        help="Comma-separated top-k-per-axis values for fold-safe selection ablation.",
+    )
+    ab.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_run_ablation"))
 
-    rq2 = sub.add_parser("run-rq2-end2end", help="Run full regression-focused end-to-end pipeline with ETA logging")
-    rq2.add_argument("--data-dir", default="data/raw")
-    rq2.add_argument("--tables-dir", default="outputs/tables")
-    rq2.add_argument("--figures-dir", default="outputs/figures")
-    rq2.add_argument("--seed", type=int, default=42)
-    rq2.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    rq2.add_argument("--n-permutations", type=int, default=None)
-    rq2.add_argument("--max-targets", type=int, default=None)
-    rq2.add_argument("--max-feature-sets", type=int, default=None)
-    rq2.add_argument("--max-models", type=int, default=None)
-    rq2.add_argument("--workers", type=int, default=1)
-    rq2.set_defaults(func=cmd_run_rq2_end2end)
-
-    rq23 = sub.add_parser("run-rq23-end2end", help="Run full RQ2+RQ3 pipeline (regression + classification + stats + figures)")
-    rq23.add_argument("--data-dir", default="data/raw")
-    rq23.add_argument("--tables-dir", default="outputs/tables")
-    rq23.add_argument("--figures-dir", default="outputs/figures")
-    rq23.add_argument("--seed", type=int, default=42)
-    rq23.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    rq23.add_argument("--n-permutations", type=int, default=None)
-    rq23.add_argument("--max-targets", type=int, default=None)
-    rq23.add_argument("--max-feature-sets", type=int, default=None)
-    rq23.add_argument("--max-models", type=int, default=None)
-    rq23.add_argument("--workers", type=int, default=1)
-    rq23.set_defaults(func=cmd_run_rq23_end2end)
-
-    study = sub.add_parser("run-ablation-study", help="Run ablation study with feature screening and balancing")
-    study.add_argument("--data-dir", default="data/raw")
-    study.add_argument("--tables-dir", default="outputs/tables")
-    study.add_argument("--figures-dir", default="outputs/figures")
-    study.add_argument("--seed", type=int, default=42)
-    study.add_argument("--experiment-config", default=None, help="Path to experiment protocol YAML")
-    study.add_argument("--max-models", type=int, default=2)
-    study.add_argument("--max-feature-sets", type=int, default=2)
-    study.add_argument("--top-k-per-axis", type=int, default=25)
-    study.add_argument("--class-balance", choices=["none", "oversample", "undersample", "smote"], default="smote")
-    study.add_argument("--workers", type=int, default=1)
-    study.set_defaults(func=cmd_run_ablation_study)
+    abf = sub.add_parser(
+        "build-ablation-figures",
+        help="Build ablation publication figures from existing ablation CSV tables",
+    )
+    abf.add_argument("--tables-dir", default="outputs/tables")
+    abf.add_argument("--figures-dir", default="outputs/figures")
+    abf.add_argument("--runs-dir", default="outputs/runs")
+    abf.set_defaults(func=_lazy_handler("usability_teleop.cli.commands_protocol", "cmd_build_ablation_figures"))
     return parser

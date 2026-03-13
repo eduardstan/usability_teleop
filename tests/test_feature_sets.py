@@ -6,6 +6,7 @@ from usability_teleop.features.ee_quat import (
     build_feature_set,
     generate_ee_quat_feature_sets,
 )
+from usability_teleop.protocol.selection import SelectionConfig, select_full_features
 
 
 def test_generate_ee_quat_feature_sets_count_and_order() -> None:
@@ -119,3 +120,17 @@ def test_aggregate_user_level_features_means_by_user() -> None:
     assert list(out.index) == [1, 2]
     assert out.loc[1, "f1"] == 2.0
     assert out.loc[2, "f1"] == 15.0
+
+
+def test_top_k_per_axis_keeps_avg_feature_set_columns() -> None:
+    avg_df = pd.DataFrame(
+        {
+            "min_ee_quat.avg": [0.1, 0.3, 0.2],
+            "max_ee_quat.avg": [1.0, 0.8, 1.2],
+            "mean_ee_quat.avg": [0.4, 0.5, 0.6],
+        }
+    )
+    selected, cols = select_full_features(avg_df, SelectionConfig(top_k_per_axis=1))
+    assert len(cols) == 1
+    assert selected.shape[1] == 1
+    assert cols[0] in set(avg_df.columns)

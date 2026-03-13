@@ -1,0 +1,30 @@
+regression:
+  - name: LinearRegression
+    estimator: sklearn.linear_model.LinearRegression
+    fixed_params: {}
+    param_grid: {}
+
+  - name: Ridge
+    estimator: sklearn.linear_model.Ridge
+    fixed_params: {}
+    param_grid:
+      alpha: [0.1, 1.0]
+
+classification:
+  - name: RidgeLikeClassifier
+    estimator: sklearn.linear_model.LogisticRegression
+    fixed_params:
+      max_iter: 20000
+    param_grid:
+      C: [0.1, 1.0]
+      penalty: ["l2"]
+      solver: ["liblinear"]
+
+  - name: LassoLikeClassifier
+    estimator: sklearn.linear_model.LogisticRegression
+    fixed_params:
+      max_iter: 20000
+    param_grid:
+      C: [0.1, 1.0]
+      penalty: ["l1"]
+      solver: ["liblinear"]

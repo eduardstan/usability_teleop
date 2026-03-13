@@ -1,86 +1,92 @@
 # AGENTS.md
 
-## Mission
-Build a clean, reproducible, publication-grade research codebase for testing the claims in `draft.tex`, replacing legacy scripts with a modular pipeline suitable for open release.
+## Purpose
+This file is the operational bootstrap for any new AI/human contributor opening this repository for the first time.
 
-## Scope for This Repository
-- Source of truth for experiments and figures used in the paper.
-- Data required for experiments must be standardized into a documented `data/` layout.
-- Outputs must be deterministic, reproducible, and easy to regenerate end-to-end.
+Primary objective:
+- maintain a clean, reproducible, publication-grade research pipeline for claims in `draft.tex`.
 
-## Non-Negotiable Engineering Standards
-- Reproducibility first: fixed seeds, explicit configs, version-pinned dependencies, deterministic splits.
-- Clean architecture: small composable modules, no notebook-only logic, minimal side effects.
-- Traceability: every figure/table must map to a command, config, and artifact hash/run id.
-- Validation: tests for data loading, feature generation, CV split integrity, and metric computation.
-- Publication quality visuals: unified style system so all figures look authored by the same hand.
+## Repository Identity
+- Project: `usability_teleop`
+- Python package: `usability_teleop`
+- Environment: conda env `usability_teleop_clean`
+- Source root: `src/usability_teleop/`
 
-## Required Pipeline Capabilities (Aligned to draft.tex)
-1. Data ingestion + schema checks (features, labels, questionnaire, demographics, timing).
-2. Feature engineering:
-   - user-level aggregation
-   - end-effector orientation feature subsets (x/y/z/w combinations + axis-average variant)
-   - target encoding and optional inversion logic only for correlation stage.
-3. Stage 1: correlation analysis (Pearson/Spearman, p-values, effect-size thresholding).
-4. Stage 2: regression benchmark:
-   - 10 model families
-   - LOSO outer CV
-   - inner CV tuning
-   - global multi-output + target-specific settings
-   - RMSE/MAE/R2.
-5. Stage 3: binary classification benchmark:
-   - median split per target
-   - LOSO + inner tuning
-   - Accuracy/Balanced Accuracy/F1/AUC.
-6. Statistical validation:
-   - permutation tests (regression + classification)
-   - p-values and significance reporting.
-7. Interpretability:
-   - SHAP for best statistically significant models.
-8. Artifact generation:
-   - publication-ready figures + tables
-   - machine-readable result files.
+## Source-of-Truth Documents
+- `README.md`: full usage and reproducibility guide.
+- `DATA_CONTRACTS.md`: dataset contracts and expected raw files.
+- `IMPLEMENTATION_PLAN.md`: canonical implementation plan.
+- `TASK_LIST.md`: canonical execution checklist.
+- `DEV_HISTORY.md`: consolidated historical milestones.
 
-## Initial Target Repository Layout
-```text
-.
-├── AGENTS.md
-├── IMPLEMENTATION_PLAN.md
-├── TASK_LIST.md
-├── README.md
-├── environment.yml
-├── pyproject.toml
-├── src/usability_teleop/
-│   ├── config/
-│   ├── data/
-│   ├── features/
-│   ├── modeling/
-│   ├── evaluation/
-│   ├── stats/
-│   ├── viz/
-│   └── cli/
-├── scripts/
-├── configs/
-├── data/
-│   ├── raw/
-│   ├── interim/
-│   └── processed/
-├── outputs/
-│   ├── figures/
-│   ├── tables/
-│   └── runs/
-└── tests/
-```
+Do not re-introduce versioned planning files like `*_v3.md`, `*_v4.md`, etc.
 
-## Execution Rules
-- Implement production code under `src/`.
-- No hidden manual steps for reproducing results.
-- Every experiment must run via CLI command + config file.
-- Prefer typed Python, docstrings for non-trivial APIs, and lint/format checks.
-- Keep all plotting defaults centralized in one style module.
+## Canonical Data/Output Locations
+- Inputs: `data/raw/`
+- Generated tables: `outputs/tables/`
+- Generated figures: `outputs/figures/`
+- Run/build metadata: `outputs/runs/`
 
-## Decision Log (Initialize)
-- Repository naming will be finalized before first public release; code package naming can be updated once chosen.
-- Plan and tasks are tracked in:
-  - `IMPLEMENTATION_PLAN.md`
-  - `TASK_LIST.md`
+## Active CLI Surface
+- `doctor`
+- `validate-data`
+- `run-estimation`
+- `run-stat-validation`
+- `fit-final-models`
+- `run-final-explainability`
+- `run-ablation`
+- `build-figures`
+- `build-ablation-figures`
+- `build-paper-artifacts`
+
+## Experiment Profiles
+Model grids are config-driven and selected with `--models-config`:
+- `configs/models_fast.yaml`: smoke/dev profile.
+- `configs/models_full.yaml`: paper-grade profile.
+- `configs/models.yaml`: baseline/default profile.
+
+## Methodological Invariants
+- Deterministic runs: fixed seed and explicit config references.
+- Outer evaluation: LOSO-based protocols.
+- Class balancing is currently disabled in active CLI surfaces (future feature).
+- Feature selection: fold-safe selection logic (`top_k_per_axis`) where applicable.
+- `run-ablation` uses `--top-k-per-axis` as a comma-separated sweep (example: `1,2,3,5,8`).
+- Statistical validation includes both tracks:
+  - permutation tests,
+  - inference bundle,
+  - global-vs-target-specific comparisons (regression and classification).
+
+## Artifact Contracts (High Level)
+Core tables generated through stage flow include:
+- estimation: `estimation_regression.csv`, `estimation_classification.csv`, `estimation_best_configs.csv`
+- stat validation: `correlation_results.csv`, permutation tables, inference tables,
+  `regression_best_global_vs_target_specific.csv`,
+  `classification_best_global_vs_target_specific.csv`
+- final lane: `final_models.csv`, `final_explainability_shap.csv`
+- ablation: `ablation_summary.csv`, `ablation_breakdown.csv`,
+  `ablation_feature_filter_summary.csv`, `ablation_target_distributions.csv`
+
+## Figure Contracts (High Level)
+Generated by `build-figures` and `build-ablation-figures`:
+- protocol figures: correlation, regression/classification overviews, permutation,
+  inference (CI/p-values/bayesian), global-vs-target-specific (regression/classification), dashboard
+- ablation figures: stage summary, delta heatmap, target distributions
+
+## Engineering Rules
+- Keep production logic under `src/`, tests under `tests/`.
+- No notebook-only logic or hidden manual steps.
+- Every figure/table must be reproducible from CLI + config.
+- Keep plotting style centralized in `src/usability_teleop/viz/theme.py`.
+- Prefer removing deprecated surfaces rather than leaving stale compatibility shims.
+
+## First-Session Checklist (for a new agent)
+1. Read `README.md` and `DATA_CONTRACTS.md`.
+2. Confirm environment: `conda activate usability_teleop_clean`.
+3. Run `usability-teleop doctor`.
+4. Run a fast smoke path using `configs/models_fast.yaml`.
+5. Inspect `outputs/tables`, `outputs/figures`, `outputs/runs` for expected artifacts.
+6. Run tests before and after modifications.
+
+## Out-of-Scope by Default
+- Stop/resume orchestration framework is not implemented yet.
+- Large structural rewrites without preserving CLI artifact contracts.

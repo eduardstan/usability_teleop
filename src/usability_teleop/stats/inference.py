@@ -145,7 +145,10 @@ def run_classification_inference(
     rows: list[dict[str, object]] = []
     baseline_spec = spec_by_name(model_specs, cfg.baseline_classification_model)
     rng = np.random.default_rng(cfg.random_seed)
-    valid = classification_results[classification_results["status"] == "ok"]
+    if "status" in classification_results.columns:
+        valid = classification_results[classification_results["status"] == "ok"]
+    else:
+        valid = classification_results
     for target in y_cls.columns:
         target_rows = valid[valid["target"] == target]
         if target_rows.empty:

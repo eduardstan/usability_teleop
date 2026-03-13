@@ -16,7 +16,6 @@ from usability_teleop.data.ingestion import (
 from usability_teleop.data.validation import DataValidationError
 from usability_teleop.evaluation.regression import build_global_vs_target_specific_r2
 from usability_teleop.features.ee_quat import aggregate_user_level_features
-from usability_teleop.viz.figures import plot_global_vs_target_specific_r2
 
 
 def raw_data_paths(base_dir: Path) -> DataPaths:
@@ -45,6 +44,8 @@ def write_regression_comparison_artifacts(
     table_dir: Path,
     figure_dir: Path,
 ) -> pd.DataFrame:
+    from usability_teleop.viz.figures import plot_global_vs_target_specific_r2
+
     comparison = build_global_vs_target_specific_r2(regression_global_df, regression_target_specific_df)
     out_table = table_dir / "regression_best_global_vs_target_specific.csv"
     comparison.to_csv(out_table, index=False)
