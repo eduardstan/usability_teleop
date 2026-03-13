@@ -33,6 +33,10 @@ This file summarizes major repository milestones that were previously tracked ac
 - Integrated classification comparison into statistical outputs and publication figure build flow.
 - Consolidated historical planning artifacts into canonical files and this history document.
 - Refreshed onboarding docs (`README.md`, `AGENTS.md`) for clean new-chat startup context.
+- Refined ablation to fold-safe feature-selection stages over `top_k_per_axis` values.
+- Unified ablation UX naming to `--top-k-per-axis` and removed alternate argument naming.
+- Deprecated class-balance in active CLI and disabled balancing in current protocol runs.
+- Expanded `models_full.yaml` to a broader paper-grade hyperparameter space.
 
 ## Historical Artifacts Consolidated
 The following versioned artifacts were consolidated into this history and canonical files:

@@ -50,6 +50,7 @@ Model grids are config-driven and selected with `--models-config`:
 - Outer evaluation: LOSO-based protocols.
 - Class balancing is currently disabled in active CLI surfaces (future feature).
 - Feature selection: fold-safe selection logic (`top_k_per_axis`) where applicable.
+- `run-ablation` uses `--top-k-per-axis` as a comma-separated sweep (example: `1,2,3,5,8`).
 - Statistical validation includes both tracks:
   - permutation tests,
   - inference bundle,

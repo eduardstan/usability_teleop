@@ -111,7 +111,7 @@ Use `configs/experiment.yaml` (or custom path) for:
 ### Feature-selection knob
 - `--top-k-per-axis` controls fold-safe variance-based screening per quaternion axis.
 - `--max-feature-sets` only caps run breadth (not statistical selection).
-- `run-ablation` varies fold-safe selection via `--ablation-topk-values` (for example `1,2,3,5,8`).
+- `run-ablation` varies fold-safe selection via `--top-k-per-axis` as a comma list (for example `1,2,3,5,8`).
 
 ## 6) Stage-by-Stage Reproducible Pipeline
 
@@ -170,7 +170,7 @@ usability-teleop run-ablation \
   --models-config configs/models_full.yaml \
   --max-models 10 \
   --max-feature-sets 16 \
-  --ablation-topk-values 1,2,3,5,8 \
+  --top-k-per-axis 1,2,3,5,8 \
   --seed 42
 
 # 7) Ablation figures
@@ -262,7 +262,7 @@ usability-teleop run-stat-validation --data-dir data/raw --tables-dir outputs/ta
 usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --seed "$SEED"
 usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --seed "$SEED"
 usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
-usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --ablation-topk-values 1,2,3,5,8 --seed "$SEED"
+usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --top-k-per-axis 1,2,3,5,8 --seed "$SEED"
 usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
 ```
 

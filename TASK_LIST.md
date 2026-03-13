@@ -14,15 +14,19 @@
 - [x] Restrict class-balance mode to `none|smote`.
 - [x] Remove dead oversample/undersample paths from active protocol/evaluation code.
 - [x] Add parser test for invalid class-balance modes.
+- [x] Deprecate/remove `--class-balance` from active CLI surface to preserve regression/classification symmetry.
 
 ## P3: Ablation Pipeline
 - [x] Add `run-ablation` command and ablation table contracts.
 - [x] Add `build-ablation-figures` command.
 - [x] Integrate ablation figure generation into `build-figures` when inputs exist.
+- [x] Unify ablation UX to `--top-k-per-axis` (comma list) and remove alternate naming.
+- [x] Make ablation selection fold-safe (no global prefilter leakage).
 
 ## P4: Model Profile Control
 - [x] Add fast/full model profiles (`models_fast.yaml`, `models_full.yaml`).
 - [x] Add `--models-config` to major experiment commands.
+- [x] Expand `models_full.yaml` with broader paper-grade hyperparameter search space.
 - [ ] Add explicit run metadata fields for selected model-profile hash.
 
 ## P5: Documentation and Onboarding

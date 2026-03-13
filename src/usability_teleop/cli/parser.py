@@ -113,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     ab.add_argument("--max-models", type=int, default=2)
     ab.add_argument("--max-feature-sets", type=int, default=4)
     ab.add_argument(
-        "--ablation-topk-values",
+        "--top-k-per-axis",
         default="1,2,3,5",
         help="Comma-separated top-k-per-axis values for fold-safe selection ablation.",
     )

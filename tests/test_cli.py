@@ -34,6 +34,12 @@ def test_cli_supports_models_config_argument() -> None:
     assert args.models_config == "configs/models_fast.yaml"
 
 
+def test_cli_run_ablation_uses_top_k_per_axis_list_argument() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["run-ablation", "--top-k-per-axis", "1,2,3"])
+    assert args.top_k_per_axis == "1,2,3"
+
+
 def test_cli_deprecates_class_balance_flag() -> None:
     parser = build_parser()
     try:

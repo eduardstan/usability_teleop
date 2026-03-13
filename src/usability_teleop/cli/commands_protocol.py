@@ -863,15 +863,15 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
         topk_values = sorted(
             {
                 int(tok.strip())
-                for tok in str(args.ablation_topk_values).split(",")
+                for tok in str(args.top_k_per_axis).split(",")
                 if tok.strip()
             }
         )
     except ValueError:
-        logger.error("run-ablation FAILED: invalid --ablation-topk-values=%s", args.ablation_topk_values)
+        logger.error("run-ablation FAILED: invalid --top-k-per-axis=%s", args.top_k_per_axis)
         return 1
     if not topk_values or any(v <= 0 for v in topk_values):
-        logger.error("run-ablation FAILED: --ablation-topk-values must contain positive integers")
+        logger.error("run-ablation FAILED: --top-k-per-axis must contain positive integers")
         return 1
     try:
         outputs = run_ablation_study(

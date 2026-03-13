@@ -21,7 +21,7 @@ Maintain a clean, reproducible, publication-grade pipeline that regenerates all 
 - Maintain permutation and inference outputs with corresponding figures.
 
 3. Ablation rigor
-- Keep feature-selection and class-balance ablations as first-class pipeline outputs.
+- Keep feature-selection ablations as first-class pipeline outputs (class balancing currently disabled).
 - Expand ablation visual suite for publication-ready narratives.
 
 4. Cluster operations
