@@ -238,6 +238,10 @@ usability-teleop build-paper-artifacts \
 ### Run metadata (`outputs/runs/`)
 - `build_figures_report.json`
 - `build_ablation_figures_report.json`
+- `run_manifest_<command>_<timestamp>.json`
+- `run_manifest_<command>_latest.json`
+
+Each `run_manifest_*` stores command args, UTC start/end timestamps, elapsed seconds, git commit hash, status, output paths, and error details.
 
 ## 9) Cluster Execution Pattern
 
@@ -245,6 +249,7 @@ Recommended pattern:
 1. Run each stage as an independent job (estimation, stat-validation, final-fit, explainability, figure build, ablation).
 2. Keep shared storage paths fixed (`outputs/tables`, `outputs/figures`, `outputs/runs`).
 3. Re-run only failed or updated stages; downstream stages consume existing CSV artifacts.
+4. Capture per-command runtime metadata from `outputs/runs/run_manifest_*` for paper reporting.
 
 Example shell skeleton:
 

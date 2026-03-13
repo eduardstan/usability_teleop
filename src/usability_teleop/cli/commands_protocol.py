@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -34,6 +37,66 @@ from usability_teleop.stats.inference import (
 
 def _resolve_models_config(path: str | None) -> Path | None:
     return Path(path).resolve() if path else None
+
+
+def _resolve_runs_dir(args: argparse.Namespace) -> Path:
+    return Path(getattr(args, "runs_dir", "outputs/runs")).resolve()
+
+
+def _serialize_json(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, list):
+        return [_serialize_json(v) for v in value]
+    if isinstance(value, tuple):
+        return [_serialize_json(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _serialize_json(v) for k, v in value.items()}
+    return str(value)
+
+
+def _git_commit() -> str:
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL)
+            .strip()
+        )
+    except Exception:
+        return "unknown"
+
+
+def _write_run_manifest(
+    *,
+    command: str,
+    args: argparse.Namespace,
+    start_utc: datetime,
+    elapsed_seconds: float,
+    status: str,
+    outputs: list[str],
+    error: str | None = None,
+) -> None:
+    runs_dir = _resolve_runs_dir(args)
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    args_payload = {k: v for k, v in vars(args).items() if k != "func"}
+    end_utc = datetime.now(UTC)
+    payload = {
+        "command": command,
+        "status": status,
+        "start_utc": start_utc.isoformat(),
+        "end_utc": end_utc.isoformat(),
+        "elapsed_seconds": float(elapsed_seconds),
+        "git_commit": _git_commit(),
+        "args": _serialize_json(args_payload),
+        "outputs": outputs,
+        "error": error,
+    }
+    stamp = start_utc.strftime("%Y%m%dT%H%M%S")
+    out = runs_dir / f"run_manifest_{command}_{stamp}.json"
+    out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    latest = runs_dir / f"run_manifest_{command}_latest.json"
+    latest.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _run_estimation(
@@ -440,6 +503,11 @@ def _run_final_shap(
 
 
 def cmd_run_estimation(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -447,26 +515,77 @@ def cmd_run_estimation(args: argparse.Namespace, logger: object) -> int:
         bundle, x_user = prepare_aligned_inputs(source_dir)
     except DataValidationError as exc:
         logger.error("run-estimation FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="run_estimation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     reg_df, cls_df, best_df = _run_estimation(x_user, bundle.questionnaire, args, logger)
-    reg_df.to_csv(tables_dir / "estimation_regression.csv", index=False)
-    cls_df.to_csv(tables_dir / "estimation_classification.csv", index=False)
-    best_df.to_csv(tables_dir / "estimation_best_configs.csv", index=False)
+    reg_path = tables_dir / "estimation_regression.csv"
+    cls_path = tables_dir / "estimation_classification.csv"
+    best_path = tables_dir / "estimation_best_configs.csv"
+    reg_df.to_csv(reg_path, index=False)
+    cls_df.to_csv(cls_path, index=False)
+    best_df.to_csv(best_path, index=False)
+    outputs.extend([str(reg_path), str(cls_path), str(best_path)])
     logger.info("estimation tables written to %s", tables_dir)
+    _write_run_manifest(
+        command="run_estimation",
+        args=args,
+        start_utc=start_utc,
+        elapsed_seconds=time.perf_counter() - start,
+        status=status,
+        outputs=outputs,
+        error=error,
+    )
     return 0
 
 
 def cmd_fit_final_models(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
     best_path = tables_dir / "estimation_best_configs.csv"
     if not best_path.exists():
         logger.error("Missing %s", best_path)
+        status = "error"
+        error = f"Missing {best_path}"
+        _write_run_manifest(
+            command="fit_final_models",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     try:
         bundle, x_user = prepare_aligned_inputs(source_dir)
     except DataValidationError as exc:
         logger.error("fit-final-models FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="fit_final_models",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     try:
         estimation_best = pd.read_csv(best_path)
@@ -479,24 +598,73 @@ def cmd_fit_final_models(args: argparse.Namespace, logger: object) -> int:
         )
     except (ValueError, KeyError) as exc:
         logger.error("fit-final-models FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="fit_final_models",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
-    final_df.to_csv(tables_dir / "final_models.csv", index=False)
-    logger.info("final models table written to %s", tables_dir / "final_models.csv")
+    final_path = tables_dir / "final_models.csv"
+    final_df.to_csv(final_path, index=False)
+    outputs.append(str(final_path))
+    logger.info("final models table written to %s", final_path)
+    _write_run_manifest(
+        command="fit_final_models",
+        args=args,
+        start_utc=start_utc,
+        elapsed_seconds=time.perf_counter() - start,
+        status=status,
+        outputs=outputs,
+        error=error,
+    )
     return 0
 
 
 def cmd_run_final_explainability(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
     figures_dir = Path(args.figures_dir).resolve()
     final_path = tables_dir / "final_models.csv"
     if not final_path.exists():
         logger.error("Missing %s", final_path)
+        status = "error"
+        error = f"Missing {final_path}"
+        _write_run_manifest(
+            command="run_final_explainability",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     try:
         bundle, x_user = prepare_aligned_inputs(source_dir)
     except DataValidationError as exc:
         logger.error("run-final-explainability FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="run_final_explainability",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     try:
         final_models = pd.read_csv(final_path)
@@ -509,13 +677,40 @@ def cmd_run_final_explainability(args: argparse.Namespace, logger: object) -> in
         )
     except (ValueError, KeyError) as exc:
         logger.error("run-final-explainability FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="run_final_explainability",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
-    shap_df.to_csv(tables_dir / "final_explainability_shap.csv", index=False)
+    shap_path = tables_dir / "final_explainability_shap.csv"
+    shap_df.to_csv(shap_path, index=False)
+    outputs.append(str(shap_path))
     logger.info("final explainability artifacts written to %s and %s", tables_dir, figures_dir)
+    _write_run_manifest(
+        command="run_final_explainability",
+        args=args,
+        start_utc=start_utc,
+        elapsed_seconds=time.perf_counter() - start,
+        status=status,
+        outputs=outputs,
+        error=error,
+    )
     return 0
 
 
 def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -527,11 +722,33 @@ def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
             reg_path,
             cls_path,
         )
+        status = "error"
+        error = f"Missing estimation tables: {reg_path} and/or {cls_path}"
+        _write_run_manifest(
+            command="run_stat_validation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     try:
         bundle, x_user = prepare_aligned_inputs(source_dir)
     except DataValidationError as exc:
         logger.error("run-stat-validation FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="run_stat_validation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
 
     y_corr = prepare_targets(bundle.questionnaire, stage="correlation")
@@ -555,19 +772,62 @@ def cmd_run_stat_validation(args: argparse.Namespace, logger: object) -> int:
         )
     except (ValueError, KeyError) as exc:
         logger.error("run-stat-validation FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="run_stat_validation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
 
-    reg_perm.to_csv(tables_dir / "permutation_regression_results.csv", index=False)
-    cls_perm.to_csv(tables_dir / "permutation_classification_results.csv", index=False)
-    reg_comparison_df.to_csv(tables_dir / "regression_best_global_vs_target_specific.csv", index=False)
-    cls_comparison_df.to_csv(tables_dir / "classification_best_global_vs_target_specific.csv", index=False)
-    inf_reg_df.to_csv(tables_dir / "inference_regression.csv", index=False)
-    inf_cls_df.to_csv(tables_dir / "inference_classification.csv", index=False)
+    corr_path = tables_dir / "correlation_results.csv"
+    reg_perm_path = tables_dir / "permutation_regression_results.csv"
+    cls_perm_path = tables_dir / "permutation_classification_results.csv"
+    reg_cmp_path = tables_dir / "regression_best_global_vs_target_specific.csv"
+    cls_cmp_path = tables_dir / "classification_best_global_vs_target_specific.csv"
+    inf_reg_path = tables_dir / "inference_regression.csv"
+    inf_cls_path = tables_dir / "inference_classification.csv"
+    reg_perm.to_csv(reg_perm_path, index=False)
+    cls_perm.to_csv(cls_perm_path, index=False)
+    reg_comparison_df.to_csv(reg_cmp_path, index=False)
+    cls_comparison_df.to_csv(cls_cmp_path, index=False)
+    inf_reg_df.to_csv(inf_reg_path, index=False)
+    inf_cls_df.to_csv(inf_cls_path, index=False)
+    outputs.extend(
+        [
+            str(corr_path),
+            str(reg_perm_path),
+            str(cls_perm_path),
+            str(reg_cmp_path),
+            str(cls_cmp_path),
+            str(inf_reg_path),
+            str(inf_cls_path),
+        ]
+    )
     logger.info("stat-validation tables written to %s", tables_dir)
+    _write_run_manifest(
+        command="run_stat_validation",
+        args=args,
+        start_utc=start_utc,
+        elapsed_seconds=time.perf_counter() - start,
+        status=status,
+        outputs=outputs,
+        error=error,
+    )
     return 0
 
 
 def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
     exp = resolve_experiment_config(args.experiment_config)
     source_dir = Path(args.data_dir).resolve()
     tables_dir = Path(args.tables_dir).resolve()
@@ -578,6 +838,17 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
         bundle, x_user = prepare_aligned_inputs(source_dir)
     except DataValidationError as exc:
         logger.error("build-paper-artifacts FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="build_paper_artifacts",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     y_corr = prepare_targets(bundle.questionnaire, stage="correlation")
     corr_df = run_correlation_analysis(
@@ -587,6 +858,7 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
     )
     corr_df.to_csv(tables_dir / "correlation_results.csv", index=False)
     logger.info("correlation table written to %s", tables_dir / "correlation_results.csv")
+    outputs.append(str(tables_dir / "correlation_results.csv"))
 
     try:
         reg_df, cls_df, best_df = _run_estimation(x_user, bundle.questionnaire, args, logger)
@@ -633,6 +905,17 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
         logger.info("final explainability table written to %s", tables_dir / "final_explainability_shap.csv")
     except (ValueError, KeyError) as exc:
         logger.error("build-paper-artifacts FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="build_paper_artifacts",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     logger.info(
         "paper artifacts completed | tables=%s figures=%s | includes permutation p-values and "
@@ -642,10 +925,39 @@ def cmd_build_paper_artifacts(args: argparse.Namespace, logger: object) -> int:
         figures_dir,
         exp.shap.max_targets_default,
     )
+    outputs.extend(
+        [
+            str(tables_dir / "estimation_regression.csv"),
+            str(tables_dir / "estimation_classification.csv"),
+            str(tables_dir / "estimation_best_configs.csv"),
+            str(tables_dir / "permutation_regression_results.csv"),
+            str(tables_dir / "permutation_classification_results.csv"),
+            str(tables_dir / "regression_best_global_vs_target_specific.csv"),
+            str(tables_dir / "classification_best_global_vs_target_specific.csv"),
+            str(tables_dir / "inference_regression.csv"),
+            str(tables_dir / "inference_classification.csv"),
+            str(tables_dir / "final_models.csv"),
+            str(tables_dir / "final_explainability_shap.csv"),
+        ]
+    )
+    _write_run_manifest(
+        command="build_paper_artifacts",
+        args=args,
+        start_utc=start_utc,
+        elapsed_seconds=time.perf_counter() - start,
+        status=status,
+        outputs=sorted(set(outputs)),
+        error=error,
+    )
     return 0
 
 
 def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
     from usability_teleop.viz.figures import (
         plot_classification_overview,
         plot_correlation_heatmap,
@@ -662,153 +974,170 @@ def cmd_build_figures(args: argparse.Namespace, logger: object) -> int:
         plot_inference_regression_ci,
     )
 
-    tables_dir = Path(args.tables_dir).resolve()
-    figures_dir = Path(args.figures_dir).resolve()
-    runs_dir = Path(args.runs_dir).resolve()
-    figures_dir.mkdir(parents=True, exist_ok=True)
-    runs_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        tables_dir = Path(args.tables_dir).resolve()
+        figures_dir = Path(args.figures_dir).resolve()
+        runs_dir = Path(args.runs_dir).resolve()
+        figures_dir.mkdir(parents=True, exist_ok=True)
+        runs_dir.mkdir(parents=True, exist_ok=True)
 
-    corr_df = _load_csv_or_warn(tables_dir / "correlation_results.csv", logger)
-    reg_df = _load_csv_or_warn(tables_dir / "estimation_regression.csv", logger)
-    cls_df = _load_csv_or_warn(tables_dir / "estimation_classification.csv", logger)
-    reg_perm_df = _load_csv_or_warn(tables_dir / "permutation_regression_results.csv", logger)
-    cls_perm_df = _load_csv_or_warn(tables_dir / "permutation_classification_results.csv", logger)
-    comparison_df = _load_csv_or_warn(tables_dir / "regression_best_global_vs_target_specific.csv", logger)
-    cls_comparison_df = _load_csv_or_warn(tables_dir / "classification_best_global_vs_target_specific.csv", logger)
-    inf_reg_df = _load_csv_or_warn(tables_dir / "inference_regression.csv", logger)
-    inf_cls_df = _load_csv_or_warn(tables_dir / "inference_classification.csv", logger)
+        corr_df = _load_csv_or_warn(tables_dir / "correlation_results.csv", logger)
+        reg_df = _load_csv_or_warn(tables_dir / "estimation_regression.csv", logger)
+        cls_df = _load_csv_or_warn(tables_dir / "estimation_classification.csv", logger)
+        reg_perm_df = _load_csv_or_warn(tables_dir / "permutation_regression_results.csv", logger)
+        cls_perm_df = _load_csv_or_warn(tables_dir / "permutation_classification_results.csv", logger)
+        comparison_df = _load_csv_or_warn(tables_dir / "regression_best_global_vs_target_specific.csv", logger)
+        cls_comparison_df = _load_csv_or_warn(tables_dir / "classification_best_global_vs_target_specific.csv", logger)
+        inf_reg_df = _load_csv_or_warn(tables_dir / "inference_regression.csv", logger)
+        inf_cls_df = _load_csv_or_warn(tables_dir / "inference_classification.csv", logger)
 
-    built: list[str] = []
-    skipped: list[str] = []
+        built: list[str] = []
+        skipped: list[str] = []
 
-    def _mark_skip(fig_name: str, reason: str) -> None:
-        logger.warning("figure skipped: %s (%s)", fig_name, reason)
-        skipped.append(fig_name)
+        def _mark_skip(fig_name: str, reason: str) -> None:
+            logger.warning("figure skipped: %s (%s)", fig_name, reason)
+            skipped.append(fig_name)
 
-    if {"pearson_highlight", "pearson_r", "feature", "target"}.issubset(corr_df.columns):
-        if _run_plot(plot_correlation_heatmap, figures_dir / "figure_correlation_heatmap.png", logger, corr_df):
-            built.append("figure_correlation_heatmap.png")
+        if {"pearson_highlight", "pearson_r", "feature", "target"}.issubset(corr_df.columns):
+            if _run_plot(plot_correlation_heatmap, figures_dir / "figure_correlation_heatmap.png", logger, corr_df):
+                built.append("figure_correlation_heatmap.png")
+            else:
+                skipped.append("figure_correlation_heatmap.png")
         else:
-            skipped.append("figure_correlation_heatmap.png")
-    else:
-        _mark_skip("figure_correlation_heatmap.png", "missing correlation columns")
+            _mark_skip("figure_correlation_heatmap.png", "missing correlation columns")
 
-    if _run_plot(plot_regression_overview, figures_dir / "figure_regression_overview.png", logger, reg_df):
-        built.append("figure_regression_overview.png")
-    else:
-        skipped.append("figure_regression_overview.png")
+        if _run_plot(plot_regression_overview, figures_dir / "figure_regression_overview.png", logger, reg_df):
+            built.append("figure_regression_overview.png")
+        else:
+            skipped.append("figure_regression_overview.png")
 
-    if _run_plot(plot_classification_overview, figures_dir / "figure_classification_overview.png", logger, cls_df):
-        built.append("figure_classification_overview.png")
-    else:
-        skipped.append("figure_classification_overview.png")
+        if _run_plot(plot_classification_overview, figures_dir / "figure_classification_overview.png", logger, cls_df):
+            built.append("figure_classification_overview.png")
+        else:
+            skipped.append("figure_classification_overview.png")
 
-    if _run_plot(
-        plot_permutation_summary,
-        figures_dir / "figure_permutation_pvalues.png",
-        logger,
-        reg_perm_df,
-        cls_perm_df,
-    ):
-        built.append("figure_permutation_pvalues.png")
-    else:
-        skipped.append("figure_permutation_pvalues.png")
-
-    if _run_plot(
-        plot_global_vs_target_specific_r2,
-        figures_dir / "figure_regression_global_vs_target_specific.png",
-        logger,
-        comparison_df,
-    ):
-        built.append("figure_regression_global_vs_target_specific.png")
-    else:
-        skipped.append("figure_regression_global_vs_target_specific.png")
-
-    if _run_plot(
-        plot_global_vs_target_specific_auc,
-        figures_dir / "figure_classification_global_vs_target_specific.png",
-        logger,
-        cls_comparison_df,
-    ):
-        built.append("figure_classification_global_vs_target_specific.png")
-    else:
-        skipped.append("figure_classification_global_vs_target_specific.png")
-
-    if _run_plot(plot_inference_regression_ci, figures_dir / "figure_inference_regression_ci.png", logger, inf_reg_df):
-        built.append("figure_inference_regression_ci.png")
-    else:
-        skipped.append("figure_inference_regression_ci.png")
-
-    if _run_plot(
-        plot_inference_classification_ci,
-        figures_dir / "figure_inference_classification_ci.png",
-        logger,
-        inf_cls_df,
-    ):
-        built.append("figure_inference_classification_ci.png")
-    else:
-        skipped.append("figure_inference_classification_ci.png")
-
-    if _run_plot(
-        plot_inference_pvalues,
-        figures_dir / "figure_inference_pvalues.png",
-        logger,
-        inf_reg_df,
-        inf_cls_df,
-    ):
-        built.append("figure_inference_pvalues.png")
-    else:
-        skipped.append("figure_inference_pvalues.png")
-
-    if _run_plot(
-        plot_inference_bayesian,
-        figures_dir / "figure_inference_bayesian.png",
-        logger,
-        inf_reg_df,
-        inf_cls_df,
-    ):
-        built.append("figure_inference_bayesian.png")
-    else:
-        skipped.append("figure_inference_bayesian.png")
-
-    has_dashboard_inputs = any(
-        not df.empty for df in [comparison_df, reg_perm_df, cls_perm_df, inf_reg_df, inf_cls_df]
-    )
-    if has_dashboard_inputs:
         if _run_plot(
-            plot_protocol_dashboard,
-            figures_dir / "figure_protocol_dashboard.png",
+            plot_permutation_summary,
+            figures_dir / "figure_permutation_pvalues.png",
             logger,
-            comparison_df,
             reg_perm_df,
             cls_perm_df,
+        ):
+            built.append("figure_permutation_pvalues.png")
+        else:
+            skipped.append("figure_permutation_pvalues.png")
+
+        if _run_plot(
+            plot_global_vs_target_specific_r2,
+            figures_dir / "figure_regression_global_vs_target_specific.png",
+            logger,
+            comparison_df,
+        ):
+            built.append("figure_regression_global_vs_target_specific.png")
+        else:
+            skipped.append("figure_regression_global_vs_target_specific.png")
+
+        if _run_plot(
+            plot_global_vs_target_specific_auc,
+            figures_dir / "figure_classification_global_vs_target_specific.png",
+            logger,
+            cls_comparison_df,
+        ):
+            built.append("figure_classification_global_vs_target_specific.png")
+        else:
+            skipped.append("figure_classification_global_vs_target_specific.png")
+
+        if _run_plot(plot_inference_regression_ci, figures_dir / "figure_inference_regression_ci.png", logger, inf_reg_df):
+            built.append("figure_inference_regression_ci.png")
+        else:
+            skipped.append("figure_inference_regression_ci.png")
+
+        if _run_plot(
+            plot_inference_classification_ci,
+            figures_dir / "figure_inference_classification_ci.png",
+            logger,
+            inf_cls_df,
+        ):
+            built.append("figure_inference_classification_ci.png")
+        else:
+            skipped.append("figure_inference_classification_ci.png")
+
+        if _run_plot(
+            plot_inference_pvalues,
+            figures_dir / "figure_inference_pvalues.png",
+            logger,
             inf_reg_df,
             inf_cls_df,
         ):
-            built.append("figure_protocol_dashboard.png")
+            built.append("figure_inference_pvalues.png")
         else:
-            skipped.append("figure_protocol_dashboard.png")
-    else:
-        _mark_skip("figure_protocol_dashboard.png", "no dashboard inputs available")
+            skipped.append("figure_inference_pvalues.png")
 
-    ab_built, ab_skipped = _build_ablation_figures_from_tables(tables_dir, figures_dir, logger)
-    built.extend(ab_built)
-    skipped.extend(ab_skipped)
+        if _run_plot(
+            plot_inference_bayesian,
+            figures_dir / "figure_inference_bayesian.png",
+            logger,
+            inf_reg_df,
+            inf_cls_df,
+        ):
+            built.append("figure_inference_bayesian.png")
+        else:
+            skipped.append("figure_inference_bayesian.png")
 
-    report_path = runs_dir / "build_figures_report.json"
-    report = {
-        "tables_dir": str(tables_dir),
-        "figures_dir": str(figures_dir),
-        "built_figures": built,
-        "skipped_figures": skipped,
-    }
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    logger.info(
-        "build-figures completed | built=%s skipped=%s report=%s",
-        len(built),
-        len(skipped),
-        report_path,
-    )
+        has_dashboard_inputs = any(
+            not df.empty for df in [comparison_df, reg_perm_df, cls_perm_df, inf_reg_df, inf_cls_df]
+        )
+        if has_dashboard_inputs:
+            if _run_plot(
+                plot_protocol_dashboard,
+                figures_dir / "figure_protocol_dashboard.png",
+                logger,
+                comparison_df,
+                reg_perm_df,
+                cls_perm_df,
+                inf_reg_df,
+                inf_cls_df,
+            ):
+                built.append("figure_protocol_dashboard.png")
+            else:
+                skipped.append("figure_protocol_dashboard.png")
+        else:
+            _mark_skip("figure_protocol_dashboard.png", "no dashboard inputs available")
+
+        ab_built, ab_skipped = _build_ablation_figures_from_tables(tables_dir, figures_dir, logger)
+        built.extend(ab_built)
+        skipped.extend(ab_skipped)
+
+        report_path = runs_dir / "build_figures_report.json"
+        report = {
+            "tables_dir": str(tables_dir),
+            "figures_dir": str(figures_dir),
+            "built_figures": built,
+            "skipped_figures": skipped,
+        }
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        logger.info(
+            "build-figures completed | built=%s skipped=%s report=%s",
+            len(built),
+            len(skipped),
+            report_path,
+        )
+        outputs = [str(figures_dir / name) for name in built] + [str(report_path)]
+    except Exception as exc:
+        status = "error"
+        error = str(exc)
+        logger.error("build-figures FAILED: %s", exc)
+        return 1
+    finally:
+        _write_run_manifest(
+            command="build_figures",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
     return 0
 
 
@@ -844,6 +1173,11 @@ def _build_ablation_figures_from_tables(
 
 
 def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
     from usability_teleop.analysis import build_target_distribution_table, run_ablation_study
 
     source_dir = Path(args.data_dir).resolve()
@@ -853,6 +1187,17 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
         bundle, x_user = prepare_aligned_inputs(source_dir)
     except DataValidationError as exc:
         logger.error("run-ablation FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="run_ablation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
 
     exp = resolve_experiment_config(args.experiment_config)
@@ -869,12 +1214,34 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
         )
     except ValueError:
         logger.error("run-ablation FAILED: invalid --top-k-per-axis=%s", args.top_k_per_axis)
+        status = "error"
+        error = f"invalid --top-k-per-axis={args.top_k_per_axis}"
+        _write_run_manifest(
+            command="run_ablation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     if not topk_values or any(v <= 0 for v in topk_values):
         logger.error("run-ablation FAILED: --top-k-per-axis must contain positive integers")
+        status = "error"
+        error = "--top-k-per-axis must contain positive integers"
+        _write_run_manifest(
+            command="run_ablation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
     try:
-        outputs = run_ablation_study(
+        study_outputs = run_ablation_study(
             x_base=x_user,
             y_reg=y_reg,
             y_cls=y_cls,
@@ -894,36 +1261,83 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
         )
     except (ValueError, KeyError) as exc:
         logger.error("run-ablation FAILED: %s", exc)
+        status = "error"
+        error = str(exc)
+        _write_run_manifest(
+            command="run_ablation",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
         return 1
 
     target_dist_df = build_target_distribution_table(y_reg, y_cls)
-    outputs.summary.to_csv(tables_dir / "ablation_summary.csv", index=False)
-    outputs.breakdown.to_csv(tables_dir / "ablation_breakdown.csv", index=False)
-    outputs.feature_filter_summary.to_csv(tables_dir / "ablation_feature_filter_summary.csv", index=False)
-    target_dist_df.to_csv(tables_dir / "ablation_target_distributions.csv", index=False)
+    summary_path = tables_dir / "ablation_summary.csv"
+    breakdown_path = tables_dir / "ablation_breakdown.csv"
+    filter_path = tables_dir / "ablation_feature_filter_summary.csv"
+    dist_path = tables_dir / "ablation_target_distributions.csv"
+    study_outputs.summary.to_csv(summary_path, index=False)
+    study_outputs.breakdown.to_csv(breakdown_path, index=False)
+    study_outputs.feature_filter_summary.to_csv(filter_path, index=False)
+    target_dist_df.to_csv(dist_path, index=False)
+    outputs.extend([str(summary_path), str(breakdown_path), str(filter_path), str(dist_path)])
     logger.info("ablation tables written to %s", tables_dir)
+    _write_run_manifest(
+        command="run_ablation",
+        args=args,
+        start_utc=start_utc,
+        elapsed_seconds=time.perf_counter() - start,
+        status=status,
+        outputs=outputs,
+        error=error,
+    )
     return 0
 
 
 def cmd_build_ablation_figures(args: argparse.Namespace, logger: object) -> int:
-    tables_dir = Path(args.tables_dir).resolve()
-    figures_dir = Path(args.figures_dir).resolve()
-    runs_dir = Path(args.runs_dir).resolve()
-    figures_dir.mkdir(parents=True, exist_ok=True)
-    runs_dir.mkdir(parents=True, exist_ok=True)
-    built, skipped = _build_ablation_figures_from_tables(tables_dir, figures_dir, logger)
-    report_path = runs_dir / "build_ablation_figures_report.json"
-    report = {
-        "tables_dir": str(tables_dir),
-        "figures_dir": str(figures_dir),
-        "built_figures": built,
-        "skipped_figures": skipped,
-    }
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    logger.info(
-        "build-ablation-figures completed | built=%s skipped=%s report=%s",
-        len(built),
-        len(skipped),
-        report_path,
-    )
+    start = time.perf_counter()
+    start_utc = datetime.now(UTC)
+    outputs: list[str] = []
+    status = "ok"
+    error: str | None = None
+    try:
+        tables_dir = Path(args.tables_dir).resolve()
+        figures_dir = Path(args.figures_dir).resolve()
+        runs_dir = Path(args.runs_dir).resolve()
+        figures_dir.mkdir(parents=True, exist_ok=True)
+        runs_dir.mkdir(parents=True, exist_ok=True)
+        built, skipped = _build_ablation_figures_from_tables(tables_dir, figures_dir, logger)
+        report_path = runs_dir / "build_ablation_figures_report.json"
+        report = {
+            "tables_dir": str(tables_dir),
+            "figures_dir": str(figures_dir),
+            "built_figures": built,
+            "skipped_figures": skipped,
+        }
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        logger.info(
+            "build-ablation-figures completed | built=%s skipped=%s report=%s",
+            len(built),
+            len(skipped),
+            report_path,
+        )
+        outputs = [str(figures_dir / name) for name in built] + [str(report_path)]
+    except Exception as exc:
+        status = "error"
+        error = str(exc)
+        logger.error("build-ablation-figures FAILED: %s", exc)
+        return 1
+    finally:
+        _write_run_manifest(
+            command="build_ablation_figures",
+            args=args,
+            start_utc=start_utc,
+            elapsed_seconds=time.perf_counter() - start,
+            status=status,
+            outputs=outputs,
+            error=error,
+        )
     return 0

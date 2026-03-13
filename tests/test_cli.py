@@ -40,6 +40,12 @@ def test_cli_run_ablation_uses_top_k_per_axis_list_argument() -> None:
     assert args.top_k_per_axis == "1,2,3"
 
 
+def test_cli_supports_runs_dir_for_stage_commands() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["run-estimation", "--runs-dir", "outputs/runs"])
+    assert args.runs_dir == "outputs/runs"
+
+
 def test_cli_deprecates_class_balance_flag() -> None:
     parser = build_parser()
     try:

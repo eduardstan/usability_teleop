@@ -243,6 +243,17 @@ usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-di
 ### Run Metadata (`outputs/runs`)
 - `build_figures_report.json`
 - `build_ablation_figures_report.json`
+- `run_manifest_<command>_<timestamp>.json`
+- `run_manifest_<command>_latest.json`
+
+Each run manifest includes:
+- command name and args
+- start/end UTC timestamps
+- elapsed seconds
+- git commit hash
+- status (`ok`/`error`)
+- output paths
+- error details (if any)
 
 ## 8) Minimal Verification Commands
 
@@ -251,6 +262,7 @@ ls -1 outputs/tables | sort
 ls -1 outputs/figures | sort
 cat outputs/runs/build_figures_report.json
 cat outputs/runs/build_ablation_figures_report.json
+ls -1 outputs/runs/run_manifest_* | sort
 ```
 
 ## 9) Notes for Cluster Use
