@@ -57,6 +57,19 @@ This file summarizes major repository milestones that were previously tracked ac
   - `--max-feature-sets` unset -> all feature sets.
 - Reworked `README.md` and `EXPERIMENTS.md` API/default sections for cluster reproducibility clarity.
 
+## 2026-03-13 (Current Patch): Worker API Expansion + Ablation Artifact Command
+- Added `--num-workers` support to:
+  - `run-estimation`,
+  - `run-stat-validation`,
+  - `build-paper-artifacts`,
+  - `run-ablation`.
+- Added new one-command ablation surface:
+  - `build-ablation-artifacts` (runs ablation tables + ablation figures).
+- Updated protocol internals to use worker-aware parallel lanes for:
+  - estimation track execution (regression/classification lanes),
+  - stat-validation bundle execution (permutation/inference lanes).
+- Clarified in docs that ablation does not expose `--n-permutations` because ablation scope is feature-selection sensitivity; permutation inference remains in statistical validation commands.
+
 ## Historical Artifacts Consolidated
 The following versioned artifacts were consolidated into this history and canonical files:
 - `IMPLEMENTATION_PLAN_v3.md`

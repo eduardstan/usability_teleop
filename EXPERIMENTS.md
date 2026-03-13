@@ -74,6 +74,7 @@ usability-teleop run-estimation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
   --models-config "$PROFILE" \
+  --num-workers 2 \
   --max-models 2 \
   --max-feature-sets 2 \
   --top-k-per-axis 2 \
@@ -83,6 +84,7 @@ usability-teleop run-stat-validation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
   --models-config "$PROFILE" \
+  --num-workers 2 \
   --max-models 2 \
   --max-feature-sets 2 \
   --n-permutations 20 \
@@ -108,20 +110,17 @@ usability-teleop build-figures \
   --figures-dir outputs/figures \
   --runs-dir outputs/runs
 
-usability-teleop run-ablation \
+usability-teleop build-ablation-artifacts \
   --data-dir data/raw \
   --tables-dir outputs/tables \
+  --figures-dir outputs/figures \
+  --runs-dir outputs/runs \
   --models-config "$PROFILE" \
   --max-models 2 \
   --max-feature-sets 2 \
-  --num-workers 1 \
+  --num-workers 2 \
   --top-k-per-axis 1,2,3 \
   --seed "$SEED"
-
-usability-teleop build-ablation-figures \
-  --tables-dir outputs/tables \
-  --figures-dir outputs/figures \
-  --runs-dir outputs/runs
 ```
 
 ## 5) Full Paper Run (Stage-by-Stage)
@@ -139,6 +138,7 @@ usability-teleop run-estimation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
   --models-config "$PROFILE" \
+  --num-workers 24 \
   --max-models 10 \
   --max-feature-sets 16 \
   --top-k-per-axis 3 \
@@ -149,6 +149,7 @@ usability-teleop run-stat-validation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
   --models-config "$PROFILE" \
+  --num-workers 24 \
   --max-models 10 \
   --max-feature-sets 16 \
   --n-permutations 1000 \
@@ -177,22 +178,18 @@ usability-teleop build-figures \
   --figures-dir outputs/figures \
   --runs-dir outputs/runs
 
-# Stage 6: Feature-selection ablation sweep (fold-safe)
-usability-teleop run-ablation \
+# Stage 6: Feature-selection ablation sweep + ablation figures
+usability-teleop build-ablation-artifacts \
   --data-dir data/raw \
   --tables-dir outputs/tables \
+  --figures-dir outputs/figures \
+  --runs-dir outputs/runs \
   --models-config "$PROFILE" \
   --max-models 10 \
   --max-feature-sets 16 \
-  --num-workers 4 \
-  --top-k-per-axis 1,2,3,5,8 \
+  --num-workers 24 \
+  --top-k-per-axis 1,2,3,4,5,6,7,8,9,10 \
   --seed "$SEED"
-
-# Stage 7: Ablation figures
-usability-teleop build-ablation-figures \
-  --tables-dir outputs/tables \
-  --figures-dir outputs/figures \
-  --runs-dir outputs/runs
 ```
 
 ## 6) One-Command Convenience Alternative
@@ -205,6 +202,7 @@ usability-teleop build-paper-artifacts \
   --tables-dir outputs/tables \
   --figures-dir outputs/figures \
   --models-config configs/models_full.yaml \
+  --num-workers 24 \
   --max-models 10 \
   --max-feature-sets 16 \
   --top-k-per-axis 3 \
@@ -215,14 +213,14 @@ usability-teleop build-paper-artifacts \
 Then run ablation explicitly:
 
 ```bash
-usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config configs/models_full.yaml --max-models 10 --max-feature-sets 16 --num-workers 4 --top-k-per-axis 1,2,3,5,8 --seed 42
-usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
+usability-teleop build-ablation-artifacts --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs --models-config configs/models_full.yaml --max-models 10 --max-feature-sets 16 --num-workers 24 --top-k-per-axis 1,2,3,4,5,6,7,8,9,10 --seed 42
 ```
 
 Notes:
 - If `--max-models` is omitted, all models defined in the selected models YAML are evaluated.
 - If `--max-feature-sets` is omitted, all generated feature-set definitions are evaluated.
-- For ablation, `--num-workers` controls stage-level parallelism (default `1` for deterministic sequential execution).
+- `--num-workers` is available on `run-estimation`, `run-stat-validation`, `build-paper-artifacts`, `run-ablation`, and `build-ablation-artifacts`.
+- `run-ablation` / `build-ablation-artifacts` do not expose `--n-permutations`: ablation scope is fold-safe feature-selection sensitivity, while permutation inference is handled by `run-stat-validation` / `build-paper-artifacts`.
 
 ## 7) Expected Artifacts
 

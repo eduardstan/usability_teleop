@@ -18,6 +18,7 @@ def test_cli_parser_accepts_unified_commands() -> None:
     assert parser.parse_args(["build-figures"]).command == "build-figures"
     assert parser.parse_args(["run-ablation"]).command == "run-ablation"
     assert parser.parse_args(["build-ablation-figures"]).command == "build-ablation-figures"
+    assert parser.parse_args(["build-ablation-artifacts"]).command == "build-ablation-artifacts"
 
 
 def test_cli_build_paper_artifacts_accepts_permutation_args() -> None:
@@ -52,6 +53,16 @@ def test_cli_supports_runs_dir_for_stage_commands() -> None:
     parser = build_parser()
     args = parser.parse_args(["run-estimation", "--runs-dir", "outputs/runs"])
     assert args.runs_dir == "outputs/runs"
+
+
+def test_cli_supports_num_workers_for_protocol_and_artifact_build_commands() -> None:
+    parser = build_parser()
+    args_est = parser.parse_args(["run-estimation", "--num-workers", "8"])
+    args_stat = parser.parse_args(["run-stat-validation", "--num-workers", "8"])
+    args_art = parser.parse_args(["build-paper-artifacts", "--num-workers", "8"])
+    assert args_est.num_workers == 8
+    assert args_stat.num_workers == 8
+    assert args_art.num_workers == 8
 
 
 def test_cli_deprecates_class_balance_flag() -> None:

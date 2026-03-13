@@ -42,6 +42,7 @@ Do not re-introduce versioned planning files like `*_v3.md`, `*_v4.md`, etc.
 - `run-ablation`
 - `build-figures`
 - `build-ablation-figures`
+- `build-ablation-artifacts`
 - `build-paper-artifacts`
 
 ## Experiment Profiles
@@ -61,7 +62,8 @@ Default semantics:
 - Class balancing is currently disabled in active CLI surfaces (future feature).
 - Feature selection: fold-safe selection logic (`top_k_per_axis`) where applicable.
 - `run-ablation` uses `--top-k-per-axis` as a comma-separated sweep (example: `1,2,3,5,8`).
-- `run-ablation` supports `--num-workers` for stage-level parallel workers.
+- `run-estimation`, `run-stat-validation`, `build-paper-artifacts`, `run-ablation`, and `build-ablation-artifacts` support `--num-workers`.
+- `run-ablation` does not expose `--n-permutations` (ablation scope is feature-selection sensitivity, not permutation inference).
 - Statistical validation includes both tracks:
   - permutation tests,
   - inference bundle,

@@ -98,6 +98,7 @@ usability-teleop validate-data --source-dir data/raw --copy-to-raw
 ### Ablation
 - `run-ablation`
 - `build-ablation-figures`
+- `build-ablation-artifacts`
 
 ### Utilities
 - `doctor`
@@ -123,9 +124,9 @@ This section documents the active API surface and exact parameter semantics.
   - for estimation/final-fit/full-pipeline: single integer `k` or unset (`None`) for no fold-safe top-k screening.
   - for ablation: comma-separated list (for example `1,2,3,5`), each value defines one ablation stage.
 - `--num-workers`:
-  - currently exposed on `run-ablation`.
-  - `1` means deterministic sequential stage execution.
-  - `>1` runs ablation stages in parallel workers.
+  - exposed on `run-estimation`, `run-stat-validation`, `build-paper-artifacts`, `run-ablation`, `build-ablation-artifacts`.
+  - `1` keeps sequential deterministic lane execution.
+  - `>1` enables parallel lanes/workers where available.
 
 ### `doctor`
 - Runs environment/project sanity checks.
@@ -148,6 +149,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--models-config` (default: unset; resolves to `configs/models.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
+  - `--num-workers` (default: `1`; parallel lane workers)
   - `--top-k-per-axis` (default: unset; no fold-safe top-k screening)
 
 ### `run-stat-validation`
@@ -161,6 +163,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--models-config` (default: unset; resolves to `configs/models.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
+  - `--num-workers` (default: `1`; parallel permutation/inference lanes)
   - `--n-permutations` (default: unset; uses experiment config default)
   - `--nested-permutation` (flag): enable nested permutation mode.
 
@@ -205,6 +208,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--models-config` (default: unset; resolves to `configs/models.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
+  - `--num-workers` (default: `1`; parallel estimation/stat lanes)
   - `--top-k-per-axis` (default: unset; no fold-safe top-k screening)
   - `--max-targets` (default: `5`)
   - `--alpha` (default: `0.05`)
@@ -225,6 +229,10 @@ This section documents the active API surface and exact parameter semantics.
   - `--max-feature-sets` (default: unset; all feature sets)
   - `--num-workers` (default: `1`; parallel ablation stage workers)
   - `--top-k-per-axis` (default: `1,2,3,5`; comma-separated ablation stage values)
+- Why no `--n-permutations` here:
+  - current ablation scope is feature-selection sensitivity on estimation metrics.
+  - permutation/inference are already provided by `run-stat-validation` / `build-paper-artifacts`.
+  - this keeps ablation walltime tractable for broad top-k sweeps.
 
 ### `build-ablation-figures`
 - Purpose: ablation figures from existing ablation CSV tables only.
@@ -232,6 +240,21 @@ This section documents the active API surface and exact parameter semantics.
   - `--tables-dir` (default: `outputs/tables`)
   - `--figures-dir` (default: `outputs/figures`)
   - `--runs-dir` (default: `outputs/runs`)
+
+### `build-ablation-artifacts`
+- Purpose: one-command ablation pipeline (tables + ablation figures).
+- Parameters:
+  - `--data-dir` (default: `data/raw`)
+  - `--tables-dir` (default: `outputs/tables`)
+  - `--figures-dir` (default: `outputs/figures`)
+  - `--runs-dir` (default: `outputs/runs`)
+  - `--seed` (default: `42`)
+  - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--max-models` (default: unset; all models from YAML)
+  - `--max-feature-sets` (default: unset; all feature sets)
+  - `--num-workers` (default: `1`; parallel ablation stage workers)
+  - `--top-k-per-axis` (default: `1,2,3,5`; comma-separated ablation stage values)
 
 ## 6) Key Configuration Knobs
 
@@ -271,6 +294,7 @@ usability-teleop run-estimation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
   --models-config configs/models_full.yaml \
+  --num-workers 24 \
   --max-models 10 \
   --max-feature-sets 16 \
   --top-k-per-axis 3 \
@@ -281,6 +305,7 @@ usability-teleop run-stat-validation \
   --data-dir data/raw \
   --tables-dir outputs/tables \
   --models-config configs/models_full.yaml \
+  --num-workers 24 \
   --max-models 10 \
   --max-feature-sets 16 \
   --n-permutations 1000 \
@@ -309,22 +334,18 @@ usability-teleop build-figures \
   --figures-dir outputs/figures \
   --runs-dir outputs/runs
 
-# 6) Ablation tables
-usability-teleop run-ablation \
+# 6) Ablation tables + figures in one command
+usability-teleop build-ablation-artifacts \
   --data-dir data/raw \
   --tables-dir outputs/tables \
+  --figures-dir outputs/figures \
+  --runs-dir outputs/runs \
   --models-config configs/models_full.yaml \
-  --num-workers 4 \
+  --num-workers 24 \
   --max-models 10 \
   --max-feature-sets 16 \
-  --top-k-per-axis 1,2,3,5,8 \
+  --top-k-per-axis 1,2,3,4,5,6,7,8,9,10 \
   --seed 42
-
-# 7) Ablation figures
-usability-teleop build-ablation-figures \
-  --tables-dir outputs/tables \
-  --figures-dir outputs/figures \
-  --runs-dir outputs/runs
 ```
 
 ## 8) One-Command Convenience Run
@@ -335,6 +356,7 @@ usability-teleop build-paper-artifacts \
   --tables-dir outputs/tables \
   --figures-dir outputs/figures \
   --models-config configs/models_full.yaml \
+  --num-workers 24 \
   --max-models 10 \
   --max-feature-sets 16 \
   --top-k-per-axis 3 \
@@ -411,13 +433,12 @@ conda activate usability_teleop_clean
 PROFILE=configs/models_full.yaml
 SEED=42
 
-usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --seed "$SEED"
-usability-teleop run-stat-validation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --n-permutations 1000 --seed "$SEED"
+usability-teleop run-estimation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --num-workers 24 --seed "$SEED"
+usability-teleop run-stat-validation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --num-workers 24 --n-permutations 1000 --seed "$SEED"
 usability-teleop fit-final-models --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --seed "$SEED"
 usability-teleop run-final-explainability --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --seed "$SEED"
 usability-teleop build-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
-usability-teleop run-ablation --data-dir data/raw --tables-dir outputs/tables --models-config "$PROFILE" --top-k-per-axis 1,2,3,5,8 --seed "$SEED"
-usability-teleop build-ablation-figures --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs
+usability-teleop build-ablation-artifacts --data-dir data/raw --tables-dir outputs/tables --figures-dir outputs/figures --runs-dir outputs/runs --models-config "$PROFILE" --num-workers 24 --top-k-per-axis 1,2,3,4,5,6,7,8,9,10 --seed "$SEED"
 ```
 
 ## 11) Testing and Quality Gates
@@ -441,4 +462,4 @@ mypy
 
 - Missing figure/table input: rerun the upstream stage; figure builders intentionally skip missing dependencies with warnings.
 - Unexpected parser rejection for balancing mode: this flag is currently deprecated and unavailable.
-- Slow iteration: use `configs/models_fast.yaml`, lower `--max-models`, `--max-feature-sets`, and `--n-permutations`.
+- Slow iteration: use `configs/models_fast.yaml`, lower `--max-models`, `--max-feature-sets`, `--num-workers`, and `--n-permutations`.
