@@ -158,7 +158,17 @@ def run_classification_inference(
         best_spec = spec_by_name(model_specs, str(best["model"]))
         threshold = float(best["threshold"])
         y_bin = (y_cls[target].to_numpy(dtype=float) >= threshold).astype(int)
-        y_true, y_pred, _, auc = loso_classification_trace(x_user, y_bin, fs, best_spec, cfg.random_seed, tuning_scoring, inner_cv_max_splits, inner_cv_shuffle, inner_cv_seed)
+        y_true, y_pred, y_score, auc = loso_classification_trace(
+            x_user,
+            y_bin,
+            fs,
+            best_spec,
+            cfg.random_seed,
+            tuning_scoring,
+            inner_cv_max_splits,
+            inner_cv_shuffle,
+            inner_cv_seed,
+        )
         _, y_pred_base, _, _ = loso_classification_trace(x_user, y_bin, fs, baseline_spec, cfg.random_seed, tuning_scoring, inner_cv_max_splits, inner_cv_shuffle, inner_cv_seed)
         best_correct = (y_pred == y_true).astype(int)
         base_correct = (y_pred_base == y_true).astype(int)
@@ -172,7 +182,7 @@ def run_classification_inference(
             y_b = y_true[idx]
             if len(np.unique(y_b)) < 2:
                 continue
-            auc_boot_vals.append(float(roc_auc_score(y_b, y_pred[idx])))
+            auc_boot_vals.append(float(roc_auc_score(y_b, y_score[idx])))
         auc_boot = np.asarray(auc_boot_vals if auc_boot_vals else [np.nan], dtype=float)
         acc_boot = np.array([accuracy_score(y_true[idx], y_pred[idx]) for idx in boot_idx], dtype=float)
         rows.append(

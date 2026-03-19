@@ -95,6 +95,17 @@ def run_final_explainability(
         fig_path = figure_dir / f"figure_final_shap_{target}_{model_name}_{fs_name}.png"
         plt.figure(figsize=(8, 5))
         shap.summary_plot(values, x_scaled, feature_names=list(x_fs.columns), show=False, max_display=12)
+        if np.allclose(mean_abs, 0.0):
+            plt.gca().text(
+                0.02,
+                0.98,
+                "All SHAP values are 0 (constant/zero-weight model).",
+                transform=plt.gca().transAxes,
+                ha="left",
+                va="top",
+                fontsize=9,
+                bbox={"boxstyle": "round,pad=0.2", "facecolor": "#fef3c7", "edgecolor": "#f59e0b"},
+            )
         plt.tight_layout()
         plt.savefig(fig_path, dpi=300)
         plt.close()
