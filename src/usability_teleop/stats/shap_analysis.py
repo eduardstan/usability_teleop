@@ -18,6 +18,20 @@ from usability_teleop.modeling.registry import ModelSpec, build_estimator
 shap.initjs = lambda *args, **kwargs: None  # noqa: E731
 
 
+def _compute_shap_values(estimator: Any, x_scaled: np.ndarray) -> np.ndarray:
+    """Return SHAP values with a robust fallback for non-callable estimators."""
+    try:
+        explainer = shap.Explainer(estimator, x_scaled)
+        shap_values = explainer(x_scaled)
+    except TypeError:
+        explainer = shap.Explainer(estimator.predict, x_scaled)
+        shap_values = explainer(x_scaled)
+    values = np.asarray(shap_values.values)
+    if values.ndim == 3:
+        values = values[:, :, 0]
+    return values
+
+
 def _spec_by_name(specs: list[ModelSpec], model_name: str) -> ModelSpec:
     for spec in specs:
         if spec.name == model_name:
@@ -90,11 +104,7 @@ def run_regression_shap(
             estimator.set_params(**params)
         estimator.fit(x_scaled, y)
 
-        explainer = shap.Explainer(estimator, x_scaled)
-        shap_values = explainer(x_scaled)
-        values = np.asarray(shap_values.values)
-        if values.ndim == 3:
-            values = values[:, :, 0]
+        values = _compute_shap_values(estimator, x_scaled)
 
         mean_abs = np.mean(np.abs(values), axis=0)
         feature_names = list(x_fs.columns)
