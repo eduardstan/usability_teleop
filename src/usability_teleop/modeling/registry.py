@@ -24,7 +24,7 @@ class ModelSpec:
 
 
 def _default_models_config_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "configs" / "models.yaml"
+    return Path(__file__).resolve().parents[3] / "configs" / "models_full.yaml"
 
 
 def _import_estimator(path: str) -> type[Any]:
