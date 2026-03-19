@@ -1255,6 +1255,14 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
             error=error,
         )
         return 1
+    logger.info(
+        "run-ablation starting | models_config=%s max_models=%s max_feature_sets=%s num_workers=%s top_k_per_axis=%s",
+        models_config if models_config is not None else "default(models.yaml)",
+        args.max_models,
+        args.max_feature_sets,
+        args.num_workers,
+        topk_values,
+    )
     try:
         study_outputs = run_ablation_study(
             x_base=x_user,
@@ -1299,7 +1307,13 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
     study_outputs.feature_filter_summary.to_csv(filter_path, index=False)
     target_dist_df.to_csv(dist_path, index=False)
     outputs.extend([str(summary_path), str(breakdown_path), str(filter_path), str(dist_path)])
-    logger.info("ablation tables written to %s", tables_dir)
+    logger.info(
+        "ablation tables written to %s | summary_rows=%s breakdown_rows=%s filter_rows=%s",
+        tables_dir,
+        len(study_outputs.summary),
+        len(study_outputs.breakdown),
+        len(study_outputs.feature_filter_summary),
+    )
     _write_run_manifest(
         command="run_ablation",
         args=args,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -140,6 +140,16 @@ def run_ablation_study(
     if workers < 1:
         raise ValueError(f"workers must be >= 1, got {workers}")
 
+    if logger is not None:
+        logger.info(
+            "ablation study config | stages=%s regression_models=%s classification_models=%s feature_sets=%s workers=%s",
+            len(stages),
+            len(reg_models),
+            len(cls_models),
+            len(feature_sets),
+            workers,
+        )
+
     stage_results: list[_StageResult] = []
     if workers == 1 or len(stages) == 1:
         for stage_name, selection_cfg in stages:
@@ -151,30 +161,31 @@ def run_ablation_study(
                     x_base.shape[1],
                     selection_cfg.top_k_per_axis,
                 )
-            stage_results.append(
-                _run_stage(
-                    stage_name=stage_name,
-                    selection_top_k_per_axis=selection_cfg.top_k_per_axis,
-                    x_base=x_base,
-                    y_reg=y_reg,
-                    y_cls=y_cls,
-                    feature_sets=feature_sets,
-                    reg_models=reg_models,
-                    cls_models=cls_models,
-                    seed=seed,
-                    tuning_regression_scoring=tuning_regression_scoring,
-                    tuning_classification_scoring=tuning_classification_scoring,
-                    inner_regression_splits=inner_regression_splits,
-                    inner_classification_splits=inner_classification_splits,
-                    inner_shuffle=inner_shuffle,
-                    inner_seed=inner_seed,
-                )
+            stage_result = _run_stage(
+                stage_name=stage_name,
+                selection_top_k_per_axis=selection_cfg.top_k_per_axis,
+                x_base=x_base,
+                y_reg=y_reg,
+                y_cls=y_cls,
+                feature_sets=feature_sets,
+                reg_models=reg_models,
+                cls_models=cls_models,
+                seed=seed,
+                tuning_regression_scoring=tuning_regression_scoring,
+                tuning_classification_scoring=tuning_classification_scoring,
+                inner_regression_splits=inner_regression_splits,
+                inner_classification_splits=inner_classification_splits,
+                inner_shuffle=inner_shuffle,
+                inner_seed=inner_seed,
             )
+            stage_results.append(stage_result)
+            if logger is not None:
+                logger.info("study stage done=%s elapsed=%.2fs", stage_result.stage, stage_result.elapsed_seconds)
     else:
         if logger is not None:
             logger.info("study running stages in parallel with workers=%s", workers)
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            futures = [
+            futures = {
                 ex.submit(
                     _run_stage,
                     stage_name=stage_name,
@@ -192,11 +203,14 @@ def run_ablation_study(
                     inner_classification_splits=inner_classification_splits,
                     inner_shuffle=inner_shuffle,
                     inner_seed=inner_seed,
-                )
+                ): stage_name
                 for stage_name, selection_cfg in stages
-            ]
-            for f in futures:
-                stage_results.append(f.result())
+            }
+            for f in as_completed(futures):
+                stage_result = f.result()
+                stage_results.append(stage_result)
+                if logger is not None:
+                    logger.info("study stage done=%s elapsed=%.2fs", stage_result.stage, stage_result.elapsed_seconds)
 
     stage_order = {name: idx for idx, (name, _) in enumerate(stages)}
     stage_results.sort(key=lambda item: stage_order[item.stage])
@@ -240,6 +254,15 @@ def run_ablation_study(
         base = baseline_map.get(key, float("nan"))
         deltas.append(float(row["value"]) - base if np.isfinite(base) else float("nan"))
     breakdown["delta_vs_baseline"] = deltas
+    if logger is not None:
+        total_elapsed = float(sum(item.elapsed_seconds for item in stage_results))
+        logger.info(
+            "ablation study completed | stages=%s total_stage_elapsed=%.2fs summary_rows=%s breakdown_rows=%s",
+            len(stage_results),
+            total_elapsed,
+            len(summary_rows),
+            len(breakdown),
+        )
     return StudyOutputs(
         summary=pd.DataFrame(summary_rows),
         breakdown=breakdown,
