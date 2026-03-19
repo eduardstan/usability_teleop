@@ -48,11 +48,10 @@ Do not re-introduce versioned planning files like `*_v3.md`, `*_v4.md`, etc.
 ## Experiment Profiles
 Model grids are config-driven and selected with `--models-config`:
 - `configs/models_fast.yaml`: smoke/dev profile.
-- `configs/models_full.yaml`: paper-grade profile.
-- `configs/models.yaml`: baseline/default profile.
+- `configs/models_full.yaml`: default paper profile (paired/symmetric model ordering).
 
 Default semantics:
-- if `--models-config` is omitted, CLI uses `configs/models.yaml`.
+- if `--models-config` is omitted, CLI uses `configs/models_full.yaml`.
 - if `--max-models` is omitted, all models from the selected model YAML are used.
 - if `--max-feature-sets` is omitted, all generated feature sets are used.
 

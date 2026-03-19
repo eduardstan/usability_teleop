@@ -44,8 +44,9 @@ If using `venv`, ensure `source .venv/bin/activate` is done before running any `
 ## 2) Configuration Profiles
 
 - `configs/models_fast.yaml`: smoke/dev profile (small search space).
-- `configs/models_full.yaml`: paper-grade profile (expanded search space).
+- `configs/models_full.yaml`: default paper profile (paired/symmetric model ordering).
 - `configs/experiment.yaml`: protocol controls (CV, permutation, inference, SHAP defaults).
+- `models_full.yaml` pair order is index-aligned regression/classification for reporting symmetry.
 
 ## 3) Output Directories
 
@@ -219,6 +220,7 @@ usability-teleop build-ablation-artifacts --data-dir data/raw --tables-dir outpu
 Notes:
 - If `--max-models` is omitted, all models defined in the selected models YAML are evaluated.
 - If `--max-feature-sets` is omitted, all generated feature-set definitions are evaluated.
+- If `--models-config` is omitted, CLI defaults to `configs/models_full.yaml`.
 - `--num-workers` is available on `run-estimation`, `run-stat-validation`, `build-paper-artifacts`, `run-ablation`, and `build-ablation-artifacts`.
 - `run-ablation` / `build-ablation-artifacts` do not expose `--n-permutations`: ablation scope is fold-safe feature-selection sensitivity, while permutation inference is handled by `run-stat-validation` / `build-paper-artifacts`.
 

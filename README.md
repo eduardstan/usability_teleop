@@ -26,7 +26,6 @@ This repository is the experiment source of truth:
 ├── configs/
 │   ├── default.yaml
 │   ├── experiment.yaml
-│   ├── models.yaml
 │   ├── models_fast.yaml
 │   └── models_full.yaml
 ├── data/
@@ -110,7 +109,7 @@ This section documents the active API surface and exact parameter semantics.
 
 ### Global default semantics
 - `--models-config`:
-  - unset: use `configs/models.yaml` (registry default).
+  - unset: use `configs/models_full.yaml` (registry default).
   - set: load the specified model profile YAML.
 - `--max-models`:
   - unset (`None`): use all models defined in the selected `models-config` YAML.
@@ -146,7 +145,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--runs-dir` (default: `outputs/runs`)
   - `--seed` (default: `42`)
   - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
-  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models_full.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
   - `--num-workers` (default: `1`; parallel lane workers)
@@ -160,7 +159,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--runs-dir` (default: `outputs/runs`)
   - `--seed` (default: `42`)
   - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
-  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models_full.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
   - `--num-workers` (default: `1`; parallel permutation/inference lanes)
@@ -175,7 +174,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--runs-dir` (default: `outputs/runs`)
   - `--seed` (default: `42`)
   - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
-  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models_full.yaml`)
   - `--top-k-per-axis` (default: unset; no fold-safe top-k screening)
 
 ### `run-final-explainability`
@@ -205,7 +204,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--runs-dir` (default: `outputs/runs`)
   - `--seed` (default: `42`)
   - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
-  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models_full.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
   - `--num-workers` (default: `1`; parallel estimation/stat lanes)
@@ -224,7 +223,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--runs-dir` (default: `outputs/runs`)
   - `--seed` (default: `42`)
   - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
-  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models_full.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
   - `--num-workers` (default: `1`; parallel ablation stage workers)
@@ -250,7 +249,7 @@ This section documents the active API surface and exact parameter semantics.
   - `--runs-dir` (default: `outputs/runs`)
   - `--seed` (default: `42`)
   - `--experiment-config` (default: unset; resolves to `configs/experiment.yaml`)
-  - `--models-config` (default: unset; resolves to `configs/models.yaml`)
+  - `--models-config` (default: unset; resolves to `configs/models_full.yaml`)
   - `--max-models` (default: unset; all models from YAML)
   - `--max-feature-sets` (default: unset; all feature sets)
   - `--num-workers` (default: `1`; parallel ablation stage workers)
@@ -260,8 +259,20 @@ This section documents the active API surface and exact parameter semantics.
 
 ### Model profile (`--models-config`)
 - `configs/models_fast.yaml`: faster smoke/development runs.
-- `configs/models_full.yaml`: expanded paper-grade search profile.
-- `configs/models.yaml`: baseline/default profile.
+- `configs/models_full.yaml`: default paper profile (paired/symmetric regression-classification model ordering).
+
+Model pairing in `models_full.yaml` is index-aligned (1..10 regression <-> 1..10 classification) to simplify reporting and cross-checking.
+Pair map:
+1. `LinearRegression` <-> `LinearDiscriminantAnalysis`
+2. `Ridge` <-> `RidgeLikeClassifier`
+3. `Lasso` <-> `LassoLikeClassifier`
+4. `ElasticNet` <-> `ElasticNetClassifier`
+5. `KNeighborsRegressor` <-> `KNeighborsClassifier`
+6. `SVR` <-> `SVC`
+7. `DecisionTreeRegressor` <-> `DecisionTreeClassifier`
+8. `RandomForestRegressor` <-> `RandomForestClassifier`
+9. `GradientBoostingRegressor` <-> `GradientBoostingClassifier`
+10. `XGBRegressor` <-> `XGBClassifier`
 
 ### Experiment protocol (`--experiment-config`)
 Use `configs/experiment.yaml` (or custom path) for:

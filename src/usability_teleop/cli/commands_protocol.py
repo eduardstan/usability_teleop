@@ -1257,7 +1257,7 @@ def cmd_run_ablation(args: argparse.Namespace, logger: object) -> int:
         return 1
     logger.info(
         "run-ablation starting | models_config=%s max_models=%s max_feature_sets=%s num_workers=%s top_k_per_axis=%s",
-        models_config if models_config is not None else "default(models.yaml)",
+        models_config if models_config is not None else "default(models_full.yaml)",
         args.max_models,
         args.max_feature_sets,
         args.num_workers,
