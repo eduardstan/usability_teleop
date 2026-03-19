@@ -18,6 +18,22 @@ from usability_teleop.modeling.registry import build_estimator, regression_model
 shap.initjs = lambda *args, **kwargs: None  # noqa: E731
 
 
+def _compute_shap_values(estimator: Any, x_scaled: np.ndarray) -> np.ndarray:
+    """Return SHAP values with a robust fallback for non-callable estimators."""
+    try:
+        explainer = shap.Explainer(estimator, x_scaled)
+        shap_values = explainer(x_scaled)
+    except TypeError:
+        # Some estimators (for example SVR) are not directly supported as models.
+        # Fallback to a prediction-function based explainer.
+        explainer = shap.Explainer(estimator.predict, x_scaled)
+        shap_values = explainer(x_scaled)
+    values = np.asarray(shap_values.values)
+    if values.ndim == 3:
+        values = values[:, :, 0]
+    return values
+
+
 def run_final_explainability(
     x_user: pd.DataFrame,
     y_reg: pd.DataFrame,
@@ -63,11 +79,7 @@ def run_final_explainability(
             estimator.set_params(**params)
         estimator.fit(x_scaled, y)
 
-        explainer = shap.Explainer(estimator, x_scaled)
-        shap_values = explainer(x_scaled)
-        values = np.asarray(shap_values.values)
-        if values.ndim == 3:
-            values = values[:, :, 0]
+        values = _compute_shap_values(estimator, x_scaled)
         mean_abs = np.mean(np.abs(values), axis=0)
         top_idx = np.argsort(mean_abs)[::-1][:10]
         for idx in top_idx:
