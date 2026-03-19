@@ -124,6 +124,17 @@ def run_regression_shap(
         fig_path = figure_dir / f"shap_summary_{target}_{model_name}_{feature_name}.png"
         plt.figure(figsize=(8, 5))
         shap.summary_plot(values, features=x_scaled, feature_names=feature_names, show=False, max_display=12)
+        if np.allclose(mean_abs, 0.0):
+            plt.gca().text(
+                0.02,
+                0.98,
+                "All SHAP values are 0 (constant/zero-weight model).",
+                transform=plt.gca().transAxes,
+                ha="left",
+                va="top",
+                fontsize=9,
+                bbox={"boxstyle": "round,pad=0.2", "facecolor": "#fef3c7", "edgecolor": "#f59e0b"},
+            )
         plt.tight_layout()
         plt.savefig(fig_path, dpi=300)
         plt.close()

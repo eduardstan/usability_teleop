@@ -52,31 +52,57 @@ def plot_correlation_heatmap(correlation_df: pd.DataFrame, output_path: Path, to
 
 
 def plot_regression_overview(regression_global_df: pd.DataFrame, output_path: Path, top_k: int = 10) -> None:
-    """Bar plot for top global regression configurations by mean R2."""
+    """Symmetric overview: global top configs + best per-target regression R2."""
     apply_publication_theme()
     data = regression_global_df.copy()
-    if "r2_mean" not in data.columns and {"model", "feature_set", "r2"}.issubset(data.columns):
-        data = (
+    if data.empty:
+        return
+
+    global_df = pd.DataFrame()
+    if {"model", "feature_set", "r2"}.issubset(data.columns):
+        global_df = (
             data.groupby(["model", "feature_set"], as_index=False)["r2"]
             .mean()
             .rename(columns={"r2": "r2_mean"})
+            .sort_values("r2_mean", ascending=False)
+            .head(top_k)
         )
-    if "r2_mean" not in data.columns:
-        return
-    top = data.sort_values("r2_mean", ascending=False).head(top_k).copy()
-    top["label"] = top["model"] + " | " + top["feature_set"]
+    elif {"model", "feature_set", "r2_mean"}.issubset(data.columns):
+        global_df = data.sort_values("r2_mean", ascending=False).head(top_k).copy()
+    if not global_df.empty:
+        global_df["label"] = global_df["model"] + " | " + global_df["feature_set"]
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(data=top, x="r2_mean", y="label", color=PRIMARY_BLUE, ax=ax)
-    ax.axvline(0.0, color=NEUTRAL_DARK, linestyle="--", linewidth=1)
-    ax.set_title("Global Regression Benchmark (Top by Mean R2)")
-    ax.set_xlabel("Mean R2")
-    ax.set_ylabel("Configuration")
+    best_target = pd.DataFrame()
+    if {"target", "r2"}.issubset(data.columns):
+        best_target = data.sort_values(["target", "r2"], ascending=[True, False]).groupby("target", as_index=False).head(1)
+
+    n_panels = int(not global_df.empty) + int(not best_target.empty)
+    if n_panels == 0:
+        return
+    fig, axes = plt.subplots(1, n_panels, figsize=(7 * n_panels, 5))
+    if n_panels == 1:
+        axes = [axes]
+    panel_idx = 0
+    if not global_df.empty:
+        ax0 = axes[panel_idx]
+        panel_idx += 1
+        sns.barplot(data=global_df, x="r2_mean", y="label", color=PRIMARY_BLUE, ax=ax0)
+        ax0.axvline(0.0, color=NEUTRAL_DARK, linestyle="--", linewidth=1)
+        ax0.set_title("Global Top Configurations (Mean R2)")
+        ax0.set_xlabel("Mean R2")
+        ax0.set_ylabel("Configuration")
+    if not best_target.empty:
+        ax1 = axes[panel_idx]
+        sns.barplot(data=best_target, x="r2", y="target", color=PRIMARY_RED, ax=ax1)
+        ax1.axvline(0.0, color=NEUTRAL_DARK, linestyle="--", linewidth=1)
+        ax1.set_title("Best Per-Target Regression R2")
+        ax1.set_xlabel("R2")
+        ax1.set_ylabel("Target")
     _save(fig, output_path)
 
 
 def plot_classification_overview(classification_df: pd.DataFrame, output_path: Path) -> None:
-    """Bar plot for best AUC per target from classification benchmark."""
+    """Symmetric overview: global top configs + best per-target classification AUC."""
     apply_publication_theme()
     if "status" in classification_df.columns:
         valid = classification_df[classification_df["status"] == "ok"].copy()
@@ -84,14 +110,44 @@ def plot_classification_overview(classification_df: pd.DataFrame, output_path: P
         valid = classification_df.copy()
     if valid.empty:
         return
-    best = valid.sort_values(["target", "auc"], ascending=[True, False]).groupby("target", as_index=False).head(1)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(data=best, x="auc", y="target", color=PRIMARY_RED, ax=ax)
-    ax.axvline(0.5, color=NEUTRAL_DARK, linestyle=":", linewidth=1)
-    ax.set_title("Best Classification AUC per Target")
-    ax.set_xlabel("AUC")
-    ax.set_ylabel("Target")
+    global_df = pd.DataFrame()
+    if {"model", "feature_set", "auc"}.issubset(valid.columns):
+        global_df = (
+            valid.groupby(["model", "feature_set"], as_index=False)["auc"]
+            .mean()
+            .rename(columns={"auc": "auc_mean"})
+            .sort_values("auc_mean", ascending=False)
+            .head(10)
+        )
+        global_df["label"] = global_df["model"] + " | " + global_df["feature_set"]
+
+    best_target = pd.DataFrame()
+    if {"target", "auc"}.issubset(valid.columns):
+        best_target = valid.sort_values(["target", "auc"], ascending=[True, False]).groupby("target", as_index=False).head(1)
+
+    n_panels = int(not global_df.empty) + int(not best_target.empty)
+    if n_panels == 0:
+        return
+    fig, axes = plt.subplots(1, n_panels, figsize=(7 * n_panels, 5))
+    if n_panels == 1:
+        axes = [axes]
+    panel_idx = 0
+    if not global_df.empty:
+        ax0 = axes[panel_idx]
+        panel_idx += 1
+        sns.barplot(data=global_df, x="auc_mean", y="label", color=PRIMARY_BLUE, ax=ax0)
+        ax0.axvline(0.5, color=NEUTRAL_DARK, linestyle=":", linewidth=1)
+        ax0.set_title("Global Top Configurations (Mean AUC)")
+        ax0.set_xlabel("Mean AUC")
+        ax0.set_ylabel("Configuration")
+    if not best_target.empty:
+        ax1 = axes[panel_idx]
+        sns.barplot(data=best_target, x="auc", y="target", color=PRIMARY_RED, ax=ax1)
+        ax1.axvline(0.5, color=NEUTRAL_DARK, linestyle=":", linewidth=1)
+        ax1.set_title("Best Per-Target Classification AUC")
+        ax1.set_xlabel("AUC")
+        ax1.set_ylabel("Target")
     _save(fig, output_path)
 
 
